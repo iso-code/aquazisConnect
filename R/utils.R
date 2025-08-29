@@ -1,11 +1,3 @@
-library(curl)
-library(dplyr)
-library(tidyverse)
-library(jsonlite)
-library(tidyjson)
-library(httr)
-library(readxl)
-options(scipen=999)
 
 #' Get metadata from an AQUAZIS hub
 #'
@@ -42,7 +34,7 @@ get_aquazis_meta <- function(hub){
 #' get_aquazis_zrlist("https://aquazis.example.com")
 #' get_aquazis_zrlist("https://aquazis.example.com", list(f_parameter="Abflusskurve"))
 #' }
-get_aquazis_zrlist<-function(hub, st_id="", parameter="Wasserstand"){
+get_aquazis_zrlist<-function(hub, st_id="", parameter=""){
 
 
   parameter <- list(
@@ -58,7 +50,7 @@ get_aquazis_zrlist<-function(hub, st_id="", parameter="Wasserstand"){
   zr_list_url<- paste0(hub,"/zrlist_from_db")
 
   if(!is.null(parameter)){
-    ts_list<-do_aquazis_query(zr_list_url,parameter)
+    ts_list<-create_aquazis_query(zr_list_url,parameter)
     ts_list<-fromJSON(readLines(ts_list,warn=FALSE))
     if(parameter$f_parameter == "Abflusskurve")
       {return(ts_list)}
