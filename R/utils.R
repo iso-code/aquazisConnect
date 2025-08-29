@@ -215,6 +215,9 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
     stop("Error: HUB NULL or NA")
   }
 
+  begin<-format(begin,"%Y%m%d%H%M%S")
+  end<-format(end,"%Y%m%d%H%M%S")
+
   parameter = list(zrid = as.character(zrid),
                     von = begin,
                     bis = end,
@@ -279,6 +282,81 @@ get_recent_eta_curves<-function(vec){
   # Finde die Indizes dieser Zahl im Originalvektor
   indizes <- which(vec == as.character(hoechste))
   return(indizes)
+}
+
+
+#' Extract time series from AQUAZIS data
+#'
+#' This function extracts a subset of columns from an AQUAZIS time series dataset
+#' and converts them to proper types for further processing.
+#'
+#' @param zr_data A list or object returned by AQUAZIS API containing the `$data$Daten` field.
+#' @param intervall Character, either `"l"` for low-resolution or `"r"` for high-resolution time series.
+#'                 Defaults to `"l"`.
+#'
+#' @return A tibble with two or three columns depending on `intervall`:
+#' \itemize{
+#'   \item `V1` - POSIXct datetime
+#'   \item `V2` - numeric value
+#'   \item (optional) `V3` - numeric value for `"r"` interval
+#' }
+#'
+#' @importFrom dplyr select
+#' @importFrom lubridate as_datetime
+#' @export
+extract_az_ts<-function(zr_data, intervall="l"){
+
+  zr <- as.data.frame(zr_data$data$Daten)  %>%   {
+    if (intervall == "l") {
+      select(., 1:2)
+    } else if (intervall == "r") {
+      select(., 2:4)
+    } else {
+      .
+    }
+  }
+  zr$V2<-as.numeric(zr$V2)
+  zr$V1<-lubridate::as_datetime(zr$V1)
+  return(zr)
+}
+
+
+#' Determine the latest valid timestamp in an AQUAZIS time series
+#'
+#' This function fetches AQUAZIS time series data for a given station (`zrid`)
+#' and interval, and identifies the latest timestamp (`valid_to`) before missing values occur.
+#' If the returned dataset has insufficient rows, it automatically extends the `begin` date
+#' in steps until enough data is available.
+#'
+#' @param hub Character. Base URL or path to the AQUAZIS hub.
+#' @param zrid Numeric or character. AQUAZIS station ID.
+#' @param begin POSIXct or Date. Start datetime for data request.
+#' @param end POSIXct or Date. End datetime for data request.
+#' @param intervall Character. `"l"` for low-resolution, `"r"` for high-resolution. Default is `"l"`.
+#' @param stepsize Numeric. Number of days to extend `begin` if data is insufficient. Default is 30.
+#'
+#' @return POSIXct. Latest valid datetime in the time series before missing values (`NA`) appear.
+#'
+#' @importFrom lubridate as_datetime
+#' @export
+get_az_valid_to<-function(hub,zrid,begin,end, intervall="l", stepsize=30){
+
+  zr_data<-get_aquazis_zr(hub, zrid, begin, end)
+  zr<-extract_az_ts(zr_data,intervall)
+
+  while(dim(zr)[1]<=2){
+    begin <- Sys.time()-(60*60*24)*(14+stepsize)
+    zr_data<-get_aquazis_zr(hub, zrid, begin, end)
+    zr<-  extract_az_ts(zr_data,"l")
+    i=i+stepsize
+    Sys.sleep(1)
+  }
+
+  zr$V2<-as.numeric(zr$V2)
+  zr$V1<-lubridate::as_datetime(zr$V1)
+  valid_to<-zr$V1[max(which(is.na(zr$V2)))-2]
+  return(valid_to)
+
 }
 
 

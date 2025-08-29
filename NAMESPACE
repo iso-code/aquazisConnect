@@ -2,7 +2,11 @@
 
 export(check_hub_connection)
 export(create_aquazis_query)
+export(extract_az_ts)
 export(get_aquazis_meta)
 export(get_aquazis_zr)
 export(get_aquazis_zrlist)
+export(get_az_valid_to)
 export(get_recent_eta_curves)
+importFrom(dplyr,select)
+importFrom(lubridate,as_datetime)

@@ -3,14 +3,32 @@ Type: Package
 Title: AQUAZIS Data Access Tools
 Version: 0.1.0
 Authors@R: 
-    person("Marcel", "Gaj", email = "hydrologe@posteo.com", role = c("aut", "cre"))
-Description: Functions to access and process data from AQUAZIS hubs.
+    c(
+      person("Marcel", "Gaj", 
+             email = "hydrologe@posteo.com", 
+             role = c("aut", "cre")),
+      person("Phillip", "Godde", 
+             email = "phillip.godde@lanuk.nrw.de", 
+             role = "aut")
+    )
+Description: Provides functions to access, download, and process hydrological 
+    and environmental data from AQUAZIS hubs, including utilities for handling 
+    ZIP archives, CSV files, and shapefiles.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports: 
     curl,
     jsonlite,
-    tibble
+    tibble,
+    vroom,
+    dplyr,
+    sf,
+    httr,
+    stats,
+    lubridate
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
