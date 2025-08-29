@@ -9,16 +9,24 @@ get_aquazis_zr(hub = NULL, zrid = NULL, begin = "", end = "")
 \arguments{
 \item{hub}{Character. Base URL of the AQUAZIS hub.}
 
-\item{parameter}{List. Request parameters (e.g., \code{list(f_parameter="Abfluss")}).}
+\item{zrid}{Character. ZR identifier (time series id) to request.}
+
+\item{begin}{Character. Optional start date/time as string (default: "").}
+
+\item{end}{Character. Optional end date/time as string (default: "").}
 }
 \value{
 A JSON object (as a list) containing time series data.
 }
 \description{
-This function retrieves time series data for a given parameter from the AQUAZIS hub.
+Retrieves time series data for a given ZR-ID and optional time range.
 }
 \examples{
 \dontrun{
-get_aquazis_zr("https://aquazis.example.com", list(f_parameter="Abfluss"))
+get_aquazis_zr("https://aquazis.example.com",
+               zrid = "12345",
+               begin = "2020-01-01",
+               end = "2020-12-31")
 }
+
 }

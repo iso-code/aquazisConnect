@@ -3,7 +3,7 @@
 #' Sends a simple GET request to check whether the given hub URL is reachable.
 #' Returns TRUE if reachable, FALSE otherwise. Does not throw an error.
 #'
-#' @param hub Character. Base URL of the AQUAZIS hub (e.g., "https://aquazis.example.com").
+#' @param hub Character. Base URL of the AQUAZIS hub (e.g. "https://aquazis.example.com").
 #' @param timeout Integer. Request timeout in seconds (default: 5).
 #' @param logpath Character (optional). Path to a log directory for failed attempts.
 #'
@@ -59,23 +59,21 @@ check_hub_connection <- function(hub, timeout = 5, logpath = NULL) {
 
 #' Get metadata (station information) from an AQUAZIS hub
 #'
-#' This function retrieves metadata (e.g., station list) from a given AQUAZIS hub.
+#' Retrieves metadata (e.g., station list) from a given AQUAZIS hub.
 #' If the request fails, a fallback `.rds` file can be used (if `shared_data` is specified).
-#' Warnings and errors can optionally be logged.
 #'
-#' @param hub Character. Base URL of the AQUAZIS hub (e.g., `"https://aquazis.example.com"`). Must not be `NULL` or empty.
-#' @param shared_data Character (optional). Path to a directory where fallback metadata is stored or should be saved as `"aquazis_stations.rds"`.
-#' @param logpath Character (optional). Path to a directory where warnings and errors will be logged in `"try.outFile"`.
+#' @param hub Character. Base URL of the AQUAZIS hub (must not be `NULL` or empty).
+#' @param shared_data Character (optional). Path to a directory where fallback metadata
+#'   is stored or should be saved as "aquazis_stations.rds".
+#' @param logpath Character (optional). Path to a directory where warnings and errors
+#'   will be logged in "try.outFile".
 #'
 #' @return A tibble containing the metadata (`data`) from the AQUAZIS hub.
 #' If the request fails and fallback data exists, the fallback is returned instead.
 #'
 #' @examples
 #' \dontrun{
-#' # Basic usage
 #' get_aquazis_meta("https://aquazis.example.com")
-#'
-#' # With fallback and logging
 #' get_aquazis_meta("https://aquazis.example.com", shared_data = "data", logpath = "logs")
 #' }
 #'
@@ -136,20 +134,21 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
 
 #' Get time series list (ZR) from an AQUAZIS hub
 #'
-#' This function retrieves a list of time series from the AQUAZIS hub.
+#' Retrieves a list of time series from the AQUAZIS hub.
 #' Optionally, a parameter can be provided to filter the request.
 #'
 #' @param hub Character. Base URL of the AQUAZIS hub.
-#' @param parameter character. Request parameters (e.g., \code{c("Wasserstand)}).
+#' @param parameter Character. Request parameter (e.g. "Wasserstand").
 #'
 #' @return A tibble with results or, for certain parameters, the raw JSON list.
-#' @export
 #'
 #' @examples
 #' \dontrun{
 #' get_aquazis_zrlist("https://aquazis.example.com")
-#' get_aquazis_zrlist("https://aquazis.example.com", list(f_parameter="Abflusskurve"))
+#' get_aquazis_zrlist("https://aquazis.example.com", parameter = "Abflusskurve")
 #' }
+#'
+#' @export
 get_aquazis_zrlist<-function(hub, st_id="", parameter=""){
 
 
@@ -188,18 +187,24 @@ get_aquazis_zrlist<-function(hub, st_id="", parameter=""){
 
 #' Get time series data (ZR) from an AQUAZIS hub
 #'
-#' This function retrieves time series data for a given parameter from the AQUAZIS hub.
+#' Retrieves time series data for a given ZR-ID and optional time range.
 #'
 #' @param hub Character. Base URL of the AQUAZIS hub.
-#' @param parameter List. Request parameters (e.g., \code{list(f_parameter="Abfluss")}).
+#' @param zrid Character. ZR identifier (time series id) to request.
+#' @param begin Character. Optional start date/time as string (default: "").
+#' @param end Character. Optional end date/time as string (default: "").
 #'
 #' @return A JSON object (as a list) containing time series data.
-#' @export
 #'
 #' @examples
 #' \dontrun{
-#' get_aquazis_zr("https://aquazis.example.com", list(f_parameter="Abfluss"))
+#' get_aquazis_zr("https://aquazis.example.com",
+#'                zrid = "12345",
+#'                begin = "2020-01-01",
+#'                end = "2020-12-31")
 #' }
+#'
+#' @export
 get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
 
   if (is.null(zrid) || is.na(zrid)) {
@@ -233,12 +238,14 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
 #' @param parameter List. Request parameters as a named list.
 #'
 #' @return A curl connection to the query URL.
-#' @export
 #'
 #' @examples
 #' \dontrun{
-#' create_aquazis_query("https://aquazis.example.com/get_zr", list(f_parameter="Abfluss"))
+#' create_aquazis_query("https://aquazis.example.com/get_zr",
+#'                      list(f_parameter = "Abfluss"))
 #' }
+#'
+#' @export
 create_aquazis_query<-function(hub,parameter){
   query_string <- paste0(
     names(parameter), "=", vapply(parameter, URLencode, character(1), reserved = TRUE),

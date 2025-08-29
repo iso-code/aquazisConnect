@@ -7,7 +7,7 @@
 check_hub_connection(hub, timeout = 5, logpath = NULL)
 }
 \arguments{
-\item{hub}{Character. Base URL of the AQUAZIS hub (e.g., "https://aquazis.example.com").}
+\item{hub}{Character. Base URL of the AQUAZIS hub (e.g. "https://aquazis.example.com").}
 
 \item{timeout}{Integer. Request timeout in seconds (default: 5).}
 

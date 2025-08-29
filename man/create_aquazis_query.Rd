@@ -19,6 +19,8 @@ Helper function to perform a request against an AQUAZIS hub and return the conne
 }
 \examples{
 \dontrun{
-create_aquazis_query("https://aquazis.example.com/get_zr", list(f_parameter="Abfluss"))
+create_aquazis_query("https://aquazis.example.com/get_zr",
+                     list(f_parameter = "Abfluss"))
 }
+
 }

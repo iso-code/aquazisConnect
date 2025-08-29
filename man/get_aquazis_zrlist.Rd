@@ -9,15 +9,19 @@ get_aquazis_zrlist(hub, st_id = "", parameter = "")
 \arguments{
 \item{hub}{Character. Base URL of the AQUAZIS hub.}
 
-\item{parameter}{character. Request parameters (e.g., \code{c("Wasserstand)}).}
+\item{parameter}{Character. Request parameter (e.g. "Wasserstand").}
+}
+\value{
+A tibble with results or, for certain parameters, the raw JSON list.
 }
 \description{
-This function retrieves a list of time series from the AQUAZIS hub.
+Retrieves a list of time series from the AQUAZIS hub.
 Optionally, a parameter can be provided to filter the request.
 }
 \examples{
 \dontrun{
 get_aquazis_zrlist("https://aquazis.example.com")
-get_aquazis_zrlist("https://aquazis.example.com", list(f_parameter="Abflusskurve"))
+get_aquazis_zrlist("https://aquazis.example.com", parameter = "Abflusskurve")
 }
+
 }
