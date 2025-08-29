@@ -215,8 +215,7 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
     stop("Error: HUB NULL or NA")
   }
 
-
-  parameter = list(zrid = zrid,
+  parameter = list(zrid = as.character(zrid),
                     von = begin,
                     bis = end,
                     zpform = "#Y#m#d#H#M#S",
