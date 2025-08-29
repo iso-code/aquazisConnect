@@ -120,7 +120,7 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
 #'
 #' @examples
 #' \dontrun{
-#' do_aquazis_query("https://aquazis.example.com/get_zr", list(f_parameter="Abfluss"))
+#' create_aquazis_query("https://aquazis.example.com/get_zr", list(f_parameter="Abfluss"))
 #' }
 create_aquazis_query<-function(hub,parameter){
   query_string <- paste0(

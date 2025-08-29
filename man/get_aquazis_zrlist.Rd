@@ -4,23 +4,30 @@
 \alias{get_aquazis_zrlist}
 \title{Get time series list (ZR) from an AQUAZIS hub}
 \usage{
-get_aquazis_zrlist(hub, parameter = NULL)
+get_aquazis_zrlist(hub, st_id = "", parameter = "")
 }
 \arguments{
-\item{hub}{Character. Base URL of the AQUAZIS hub.}
+  \item{hub}{Character. Base URL of the AQUAZIS hub.}
 
-\item{parameter}{List or NULL. Request parameters (e.g., \code{list(f_parameter="Abflusskurve")}).}
+  \item{st_id}{Character. Optional station ID to filter results. Default is empty string.}
+
+  \item{parameter}{Character. Optional parameter filter (e.g., \code{"Wasserstand"}).}
 }
 \value{
 A tibble with results or, for certain parameters, the raw JSON list.
 }
 \description{
-This function retrieves a list of time series from the AQUAZIS hub.
-Optionally, a parameter can be provided to filter the request.
+This function retrieves a list of time series (ZR) from an AQUAZIS hub. Optionally, a station ID and/or parameter can be provided to filter the request.
 }
 \examples{
 \dontrun{
+# Basic usage
 get_aquazis_zrlist("https://aquazis.example.com")
-get_aquazis_zrlist("https://aquazis.example.com", list(f_parameter="Abflusskurve"))
+
+# Filter by parameter
+get_aquazis_zrlist("https://aquazis.example.com", parameter = "Abflusskurve")
+
+# Filter by station and parameter
+get_aquazis_zrlist("https://aquazis.example.com", st_id = "123456", parameter = "Wasserstand")
 }
 }

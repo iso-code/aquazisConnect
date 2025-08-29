@@ -4,7 +4,7 @@
 \alias{get_aquazis_zr}
 \title{Get time series data (ZR) from an AQUAZIS hub}
 \usage{
-get_aquazis_zr(hub, parameter)
+get_aquazis_zr(hub = NULL, zrid = NULL, begin = "", end = "")
 }
 \arguments{
 \item{hub}{Character. Base URL of the AQUAZIS hub.}
