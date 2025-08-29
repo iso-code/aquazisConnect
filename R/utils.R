@@ -321,43 +321,75 @@ extract_az_ts<-function(zr_data, intervall="l"){
 }
 
 
-#' Determine the latest valid timestamp in an AQUAZIS time series
+#' Get Valid-To Timestamp for AQUAZIS Time Series
 #'
-#' This function fetches AQUAZIS time series data for a given station (`zrid`)
-#' and interval, and identifies the latest timestamp (`valid_to`) before missing values occur.
-#' If the returned dataset has insufficient rows, it automatically extends the `begin` date
-#' in steps until enough data is available.
+#' This function retrieves and processes AQUAZIS time series data for a given hub and ZR-ID,
+#' and determines the latest timestamp before a continuous block of missing data (`NA`s).
+#' If the data is insufficient, it performs exponential backoff retries to fetch more historical data.
 #'
-#' @param hub Character. Base URL or path to the AQUAZIS hub.
-#' @param zrid Numeric or character. AQUAZIS station ID.
-#' @param begin POSIXct or Date. Start datetime for data request.
-#' @param end POSIXct or Date. End datetime for data request.
-#' @param intervall Character. `"l"` for low-resolution, `"r"` for high-resolution. Default is `"l"`.
-#' @param stepsize Numeric. Number of days to extend `begin` if data is insufficient. Default is 30.
+#' @param hub Character. The hub identifier to query data from.
+#' @param zrid Character or numeric. The ZR-ID used to identify the data series.
+#' @param begin POSIXct. The start date/time of the data request.
+#' @param end POSIXct. The end date/time of the data request.
+#' @param intervall Character. The interval string for time series aggregation. Default is `"l"`.
+#' @param stepsize Integer. Number of days to go further back in time when retrying. Default is `30`.
+#' @param max_retries Integer. Maximum number of exponential backoff retries. Default is `5`.
 #'
-#' @return POSIXct. Latest valid datetime in the time series before missing values (`NA`) appear.
+#' @return POSIXct. The timestamp indicating the "valid to" point, which is the last valid time before a missing data block.
 #'
-#' @importFrom lubridate as_datetime
+#' @examples
+#' \dontrun{
+#'   hub <- "example_hub"
+#'   zrid <- "123456"
+#'   begin <- as.POSIXct("2025-01-01")
+#'   end <- as.POSIXct("2025-08-01")
+#'   valid_to <- get_az_valid_to(hub, zrid, begin, end)
+#'   print(valid_to)
+#' }
+#'
 #' @export
-get_az_valid_to<-function(hub,zrid,begin,end, intervall="l", stepsize=30){
+get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
+  i <- 0
+  retry_count <- 0
+  wait_base <- 2  # initial wait time in seconds
 
-  zr_data<-get_aquazis_zr(hub, zrid, begin, end)
-  zr<-extract_az_ts(zr_data,intervall)
+  repeat {
+    # Try to fetch and process the data
+    try({
+      zr_data <- get_aquazis_zr(hub, zrid, begin, end)
+      zr <- extract_az_ts(zr_data, intervall)
+    }, silent = TRUE)
 
-  while(dim(zr)[1]<=2){
-    begin <- Sys.time()-(60*60*24)*(14+stepsize)
-    zr_data<-get_aquazis_zr(hub, zrid, begin, end)
-    zr<-  extract_az_ts(zr_data,"l")
-    i=i+stepsize
-    Sys.sleep(1.5)
+    if (exists("zr") && nrow(zr) > 2) {
+      break  # exit loop when data is sufficient
+    }
+
+    if (retry_count >= max_retries) {
+      stop("Max retries reached. Unable to retrieve sufficient data.")
+    }
+
+    # Adjust 'begin' further into the past
+    begin <- Sys.time() - (60 * 60 * 24) * (14 + i)
+    i <- i + stepsize
+
+    # Exponential backoff with jitter
+    wait_time <- wait_base * (2 ^ retry_count)
+    jitter <- runif(1, 0, 1)
+    total_wait <- wait_time + jitter
+
+    message(sprintf("Insufficient data or error. Retrying in %.2f seconds...", total_wait))
+    Sys.sleep(total_wait)
+    retry_count <- retry_count + 1
   }
 
-  zr$V2<-as.numeric(zr$V2)
-  zr$V1<-lubridate::as_datetime(zr$V1)
-  valid_to<-zr$V1[max(which(is.na(zr$V2)))-2]
-  return(valid_to)
+  # Final data processing
+  zr$V2 <- as.numeric(zr$V2)
+  zr$V1 <- lubridate::as_datetime(zr$V1)
 
+  valid_to <- zr$V1[max(which(is.na(zr$V2))) - 2]
+  return(valid_to)
 }
+
 
 
 #Available Parameters
