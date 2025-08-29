@@ -167,6 +167,7 @@ get_aquazis_zrlist<-function(hub, st_id="", parameter=""){
 
   if(!is.null(parameter)){
     ts_list<-create_aquazis_query(zr_list_url,parameter)
+
     ts_list<-fromJSON(readLines(ts_list,warn=FALSE))
     if(parameter$f_parameter == "Abflusskurve")
       {return(ts_list)}
@@ -206,7 +207,7 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
   }
 
   if (is.null(hub) || is.na(hub)) {
-    stop("Error: Zrid NULL or NA")
+    stop("Error: HUB NULL or NA")
   }
 
 

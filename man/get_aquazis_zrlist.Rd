@@ -11,9 +11,6 @@ get_aquazis_zrlist(hub, st_id = "", parameter = "")
 
 \item{parameter}{character. Request parameters (e.g., \code{c("Wasserstand)}).}
 }
-\value{
-A tibble with results or, for certain parameters, the raw JSON list.
-}
 \description{
 This function retrieves a list of time series from the AQUAZIS hub.
 Optionally, a parameter can be provided to filter the request.
