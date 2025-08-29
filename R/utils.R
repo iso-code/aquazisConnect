@@ -349,7 +349,7 @@ get_az_valid_to<-function(hub,zrid,begin,end, intervall="l", stepsize=30){
     zr_data<-get_aquazis_zr(hub, zrid, begin, end)
     zr<-  extract_az_ts(zr_data,"l")
     i=i+stepsize
-    Sys.sleep(1)
+    Sys.sleep(1.5)
   }
 
   zr$V2<-as.numeric(zr$V2)
