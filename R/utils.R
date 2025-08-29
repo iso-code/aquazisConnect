@@ -351,46 +351,113 @@ extract_az_ts<-function(zr_data, intervall="l"){
 get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
   i <- 0
   retry_count <- 0
-  wait_base <- 2  # initial wait time in seconds
+  wait_base <- 1    # initial wait time in seconds
+  wait_time <- wait_base
 
   repeat {
-    # Try to fetch and process the data
-    try({
+    # Versuche die Daten abzurufen, fang ALLE Fehler ab
+    result <- tryCatch({
       zr_data <- get_aquazis_zr(hub, zrid, begin, end)
+      # Prüfen, ob der Rückgabewert valide ist (z.B. kein Fehlerobjekt)
+      if (is.null(zr_data) || inherits(zr_data, "try-error")) {
+        stop("Invalid data returned from get_aquazis_zr")
+      }
       zr <- extract_az_ts(zr_data, intervall)
-    }, silent = TRUE)
+      if (is.null(zr) || !is.data.frame(zr)) {
+        stop("extract_az_ts returned invalid data")
+      }
+      list(success = TRUE, data = zr, error_code = NA)
+    }, error = function(e) {
+      msg <- e$message
+      # Prüfen, ob es sich um einen 429 Fehler handelt
+      if (grepl("429", msg)) {
+        list(success = FALSE, data = NULL, error_code = 429, message = msg)
+      } else if (grepl("cannot open the connection", msg)) {
+        # Verbindung konnte nicht geöffnet werden -> evtl. temporärer Fehler
+        list(success = FALSE, data = NULL, error_code = 0, message = msg)
+      } else {
+        stop(e)  # Alle anderen Fehler weitergeben
+      }
+    })
 
-    if (exists("zr") && nrow(zr) > 2) {
-      break  # exit loop when data is sufficient
+    if (result$success) {
+      zr <- result$data
+      print(zr)
+      if (nrow(zr) > 2) {
+        message("Sufficient data found, breaking loop.")
+        break
+      }
+
+      # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
+      begin <- Sys.time() - (60 * 60 * 24) * (14 + i)
+      i <- i + stepsize
+      wait_time <- wait_base
+      message("Insufficient data, increasing time window and retrying immediately.")
+      next
     }
 
-    if (retry_count >= max_retries) {
-      stop("Max retries reached. Unable to retrieve sufficient data.")
+    # Fehlerfall: 429 oder Verbindungsfehler
+    if (result$error_code == 429) {
+      message(sprintf("Error 429 received. Waiting for %.1f seconds before retry...", wait_time))
+      Sys.sleep(wait_time)
+      wait_time <- min(wait_time * 2, 60)
+      retry_count <- retry_count + 1
+
+      if (retry_count > max_retries) {
+        stop("Max retries reached due to repeated 429 errors.")
+      }
+      next
     }
 
-    # Adjust 'begin' further into the past
-    begin <- Sys.time() - (60 * 60 * 24) * (14 + i)
-    i <- i + stepsize
-
-    # Exponential backoff with jitter
-    wait_time <- wait_base * (2 ^ retry_count)
-    jitter <- runif(1, 0, 1)
-    total_wait <- wait_time + jitter
-
-    message(sprintf("Insufficient data or error. Retrying in %.2f seconds...", total_wait))
-    Sys.sleep(total_wait)
-    retry_count <- retry_count + 1
+    if (result$error_code == 0) {
+      # Temporärer Verbindungsfehler, sofort erneut versuchen (evtl. mit kleinem wait)
+      message("Connection error, retrying immediately...")
+      Sys.sleep(1)  # optional kurze Pause
+      next
+    }
   }
 
-  # Final data processing
+  # Nach erfolgreichem Abruf
   zr$V2 <- as.numeric(zr$V2)
   zr$V1 <- lubridate::as_datetime(zr$V1)
-
+  ts_start<-lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`)
   valid_to <- zr$V1[max(which(is.na(zr$V2))) - 2]
-  return(valid_to)
+
+  df_verified <- tibble(
+    start = ts_start,
+    end = valid_to
+  )
+
+  return(df_verified)
 }
 
 
+get_verified_periods <- function(hub, f_station, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
+  result <- tibble()
+
+
+
+  for (station in f_station$ORT) {
+
+    # verified_to als tibble mit start und end
+    verified_to <- get_az_valid_to(
+      hub = hub,
+      zrid = station,  # ggf. anpassen falls zrid anders heißt
+      begin = begin,
+      end = end,
+      intervall = intervall,
+      stepsize = stepsize,
+      max_retries = max_retries
+    )
+
+    # verified_to ist schon tibble mit start und end, einfach binden
+    new_row <- bind_cols(verified_to, station)
+
+    result <- bind_rows(result, new_row)
+  }
+
+  return(result)
+}
 
 #Available Parameters
 #[1] ""                     "C * Wurzel(I)"        "Batteriespannung"     "Q=C*Wurzel(I)*P"      "Potenzfunktion_12"    "Q = vm * A"
