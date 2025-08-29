@@ -2,21 +2,33 @@
 % Please edit documentation in R/utils.R
 \name{get_aquazis_meta}
 \alias{get_aquazis_meta}
-\title{Get metadata from an AQUAZIS hub}
+\title{Get metadata (station information) from an AQUAZIS hub}
 \usage{
-get_aquazis_meta(hub)
+get_aquazis_meta(hub, shared_data = NULL, logpath = NULL)
 }
 \arguments{
-\item{hub}{Character. Base URL of the AQUAZIS hub.}
+\item{hub}{Character. Base URL of the AQUAZIS hub (e.g., \code{"https://aquazis.example.com"}). Must not be \code{NULL} or empty.}
+
+\item{shared_data}{Character (optional). Path to a directory where fallback metadata is stored or should be saved as \code{"aquazis_stations.rds"}.}
+
+\item{logpath}{Character (optional). Path to a directory where warnings and errors will be logged in \code{"try.outFile"}.}
 }
 \value{
-A tibble containing metadata.
+A tibble containing the metadata (\code{data}) from the AQUAZIS hub.
+If the request fails and fallback data exists, the fallback is returned instead.
 }
 \description{
-This function retrieves metadata from an AQUAZIS hub and returns it as a tibble.
+This function retrieves metadata (e.g., station list) from a given AQUAZIS hub.
+If the request fails, a fallback \code{.rds} file can be used (if \code{shared_data} is specified).
+Warnings and errors can optionally be logged.
 }
 \examples{
 \dontrun{
+# Basic usage
 get_aquazis_meta("https://aquazis.example.com")
+
+# With fallback and logging
+get_aquazis_meta("https://aquazis.example.com", shared_data = "data", logpath = "logs")
 }
+
 }
