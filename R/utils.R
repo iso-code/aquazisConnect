@@ -270,7 +270,7 @@ create_aquazis_query<-function(hub,parameter){
   full_url <- paste0(hub, "?", query_string)
   con <- curl(full_url)
   result <- fromJSON(readLines(con,warn=FALSE))
-  on.exit(close(con))
+  on.exit(closeAllConnections())
 
   return(result)
 }
@@ -366,7 +366,7 @@ extract_az_ts<-function(zr_data, intervall="l"){
 #'
 #' @export
 get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
-  i <- 0
+  i <- 1
   retry_count <- 0
   wait_base <- 1    # initial wait time in seconds
   wait_time <- wait_base
@@ -399,17 +399,17 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
 
     if (result$success) {
       zr <- result$data
-      print(zr)
+      #print(zr)
       if (nrow(zr) > 2) {
         message("Sufficient data found, breaking loop.")
         break
       }
 
       # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
-      begin <- Sys.time() - (60 * 60 * 24) * (14 + i)
+      begin <- Sys.time() - (60 * 60 * 24) * (13 + i)
       i <- i + stepsize
       wait_time <- wait_base
-      message("Insufficient data, increasing time window and retrying immediately.")
+    #  message("Insufficient data, increasing time window and retrying immediately.")
       next
     }
 
@@ -427,7 +427,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     }
 
     if (result$error_code == 0) {
-      message("Connection error, retrying immediately...")
+     # message("Connection error, retrying immediately...")
       Sys.sleep(1)
       next
     }
@@ -451,9 +451,10 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
 get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
 
   result <- tibble()
+  i=1
 
   for (zrid in zrids) {
-
+    message(paste0("Processing Nr.",i," of ",length(zrids), "  Zrid: ", zrid))
     # verified_to als tibble mit start und end
     verified_to <- get_az_valid_to(
       hub = hub,
@@ -464,7 +465,7 @@ get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsi
       stepsize = stepsize,
       max_retries = max_retries
     )
-
+    i=i+1
     result <- bind_rows(result, verified_to)
   }
 
