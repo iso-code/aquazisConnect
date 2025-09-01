@@ -197,6 +197,15 @@ get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL){
 
 }
 
+#Abflussmessungen = Abfluss
+#Wasserstand
+#parameter <- list(
+#  f_ort= as.character(ORT),
+#  f_parameter = "Wasserstand",
+#  f_defart = "M",
+#  f_aussage = "Mes"
+#)
+
 
 #' Get time series data (ZR) from an AQUAZIS hub
 #'
@@ -370,7 +379,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   retry_count <- 0
   wait_base <- 1    # initial wait time in seconds
   wait_time <- wait_base
-
+  zr<-list()
   repeat {
     # Versuche die Daten abzurufen, fang ALLE Fehler ab
     result <- tryCatch({
@@ -379,10 +388,18 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
       if (is.null(zr_data) || inherits(zr_data, "try-error")) {
         stop("Invalid data returned from get_aquazis_zr")
       }
+      if(ymd_hms(zr_data$data$Info$`MaxFokus-Von`)>ymd_hms(begin)) {
+        zr$V1=zr_data$data$Info$`MaxFokus-Von`
+        zr$V2=NA
+        message("No verified data found!")
+        break()
+        }
+
       zr <- extract_az_ts(zr_data, intervall)
       if (is.null(zr) || !is.data.frame(zr)) {
         stop("extract_az_ts returned invalid data")
       }
+
       list(success = TRUE, data = zr, error_code = NA)
     }, error = function(e) {
       msg <- e$message
@@ -406,10 +423,10 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
       }
 
       # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
-      begin <- Sys.time() - (60 * 60 * 24) * (13 + i)
+      begin <- begin - (60 * 60 * 24) * (13 + i)
       i <- i + stepsize
       wait_time <- wait_base
-    #  message("Insufficient data, increasing time window and retrying immediately.")
+      message("Insufficient data, increasing time window and retrying immediately.")
       next
     }
 
@@ -437,13 +454,17 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   zr$V2 <- as.numeric(zr$V2)
   zr$V1 <- lubridate::as_datetime(zr$V1)
   ts_start<-lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`)
-  valid_to <- zr$V1[max(which(is.na(zr$V2))) - 2]
+  ts_end<-lubridate::as_datetime(zr_data$data$Info$`Fokus-Von`)
+  valid_to <- lubridate::parse_date_time(zr$V1[max(which(is.na(zr$V2))) - 2],tz = "UTC", orders = "ymdHMS")
+  if(length(valid_to)<1) valid_to=NA
 
   df_verified <- tibble(
     zrid = zrid,
     start = ts_start,
-    end = valid_to
+    valid = valid_to,
+    end=ts_end
   )
+
 
   return(df_verified)
 }
@@ -454,7 +475,7 @@ get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsi
   i=1
 
   for (zrid in zrids) {
-    message(paste0("Processing Nr.",i," of ",length(zrids), "  Zrid: ", zrid))
+   print(paste0("Processing Nr.",i," of ",length(zrids), "  Zrid: ", zrid))
     # verified_to als tibble mit start und end
     verified_to <- get_az_valid_to(
       hub = hub,
