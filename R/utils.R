@@ -149,38 +149,51 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
 #' }
 #'
 #' @export
-get_aquazis_zrlist<-function(hub, st_id="", parameter=""){
+get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL){
 
+  zr_list_url<- paste0(hub,"/zrlist_from_db")
 
-  parameter <- list(
+  if((!is.null(st_id) && length(st_id)>=1) && (!is.null(parameter) && length(parameter)>=1)){
+
+    parameter <- list(
     f_ort = st_id,
-      f_parameter = parameter,
+    f_parameter = parameter,
     f_defart = "K",
     f_herkunft = "F",
     f_reihenart = "Z",
     f_quelle = "P"
   )
 
+  } else if ((!is.null(st_id) || length(st_id)>=1)){
+      parameter <- list(
+      f_ort = st_id,
+      f_defart = "K",
+      f_herkunft = "F",
+      f_reihenart = "Z",
+      f_quelle = "P"
+    )
+  } else if ((!is.null(parameter) || length(parameter)>=1)){
+      parameter <- list(
+      f_parameter = parameter,
+      f_defart = "K",
+      f_herkunft = "F",
+      f_reihenart = "Z",
+      f_quelle = "P"
+    )
+  } else {stop("Error: Provide zrid and/or Parameter")}
 
-  zr_list_url<- paste0(hub,"/zrlist_from_db")
+
 
   if(!is.null(parameter)){
     ts_list<-create_aquazis_query(zr_list_url,parameter)
 
-    ts_list<-fromJSON(readLines(ts_list,warn=FALSE))
+  #  ts_list<-fromJSON(readLines(ts_list,warn=FALSE))
+
     if(parameter$f_parameter == "Abflusskurve")
       {return(ts_list)}
     else
       {return(ts_list$results)}
   }
-
-  else{
-
-    ts_list<-curl(zr_list_url)
-    ts_list<-fromJSON(readLines(ts_list, warn=FALSE))
-    return(tibble(ts_list$results))
-  }
-
 
 }
 
@@ -228,7 +241,7 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
   zr_list_url<- paste0(hub,"/get_zr")
 
   ts_data<-create_aquazis_query(zr_list_url,parameter)
-  ts_data<-fromJSON(readLines(ts_data,warn=FALSE))
+#  ts_data<-fromJSON(readLines(ts_data,warn=FALSE))
   return(ts_data)
 }
 
@@ -255,7 +268,11 @@ create_aquazis_query<-function(hub,parameter){
   )
 
   full_url <- paste0(hub, "?", query_string)
-  return(curl(full_url))
+  con <- curl(full_url)
+  result <- fromJSON(readLines(con,warn=FALSE))
+  on.exit(close(con))
+
+  return(result)
 }
 
 #' Get most recent ETA curves
@@ -410,9 +427,8 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     }
 
     if (result$error_code == 0) {
-      # Temporärer Verbindungsfehler, sofort erneut versuchen (evtl. mit kleinem wait)
       message("Connection error, retrying immediately...")
-      Sys.sleep(1)  # optional kurze Pause
+      Sys.sleep(1)
       next
     }
   }
@@ -424,6 +440,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   valid_to <- zr$V1[max(which(is.na(zr$V2))) - 2]
 
   df_verified <- tibble(
+    zrid = zrid,
     start = ts_start,
     end = valid_to
   )
@@ -431,18 +448,16 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   return(df_verified)
 }
 
+get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
 
-get_verified_periods <- function(hub, f_station, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
   result <- tibble()
 
-
-
-  for (station in f_station$ORT) {
+  for (zrid in zrids) {
 
     # verified_to als tibble mit start und end
     verified_to <- get_az_valid_to(
       hub = hub,
-      zrid = station,  # ggf. anpassen falls zrid anders heißt
+      zrid = zrid,
       begin = begin,
       end = end,
       intervall = intervall,
@@ -450,10 +465,7 @@ get_verified_periods <- function(hub, f_station, begin, end, intervall = "l", st
       max_retries = max_retries
     )
 
-    # verified_to ist schon tibble mit start und end, einfach binden
-    new_row <- bind_cols(verified_to, station)
-
-    result <- bind_rows(result, new_row)
+    result <- bind_rows(result, verified_to)
   }
 
   return(result)
