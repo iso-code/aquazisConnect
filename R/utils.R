@@ -377,7 +377,7 @@ extract_az_ts<-function(zr_data, intervall="l"){
 get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
   i <- 1
   retry_count <- 0
-  wait_base <- 1.5    # initial wait time in seconds
+  wait_base <- 2    # initial wait time in seconds
   wait_time <- wait_base
   zr<-list()
 
@@ -428,7 +428,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
         break()
       }
       # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
-      #print(result$error_code)
+      print(result$error_code)
       message("Insufficient data, increasing time window and retrying immediately.")
       begin <- begin - (60 * 60 * 24) * (13 + i)
       i <- i + stepsize
@@ -458,7 +458,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     }
 
     if (result$error_code == 0) {
-     # message("Connection error, retrying immediately...")
+      message("Connection error, retrying immediately...")
       Sys.sleep(1)
       next
     }
