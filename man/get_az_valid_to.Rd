@@ -2,29 +2,49 @@
 % Please edit documentation in R/utils.R
 \name{get_az_valid_to}
 \alias{get_az_valid_to}
-\title{Determine the latest valid timestamp in an AQUAZIS time series}
+\title{Get Valid-To Timestamp for AQUAZIS Time Series}
 \usage{
-get_az_valid_to(hub, zrid, begin, end, intervall = "l", stepsize = 30)
+get_az_valid_to(
+  hub,
+  zrid,
+  begin,
+  end,
+  intervall = "l",
+  stepsize = 30,
+  max_retries = 5
+)
 }
 \arguments{
-\item{hub}{Character. Base URL or path to the AQUAZIS hub.}
+\item{hub}{Character. The hub identifier to query data from.}
 
-\item{zrid}{Numeric or character. AQUAZIS station ID.}
+\item{zrid}{Character or numeric. The ZR-ID used to identify the data series.}
 
-\item{begin}{POSIXct or Date. Start datetime for data request.}
+\item{begin}{POSIXct. The start date/time of the data request.}
 
-\item{end}{POSIXct or Date. End datetime for data request.}
+\item{end}{POSIXct. The end date/time of the data request.}
 
-\item{intervall}{Character. \code{"l"} for low-resolution, \code{"r"} for high-resolution. Default is \code{"l"}.}
+\item{intervall}{Character. The interval string for time series aggregation. Default is \code{"l"}.}
 
-\item{stepsize}{Numeric. Number of days to extend \code{begin} if data is insufficient. Default is 30.}
+\item{stepsize}{Integer. Number of days to go further back in time when retrying. Default is \code{30}.}
+
+\item{max_retries}{Integer. Maximum number of exponential backoff retries. Default is \code{5}.}
 }
 \value{
-POSIXct. Latest valid datetime in the time series before missing values (\code{NA}) appear.
+POSIXct. The timestamp indicating the "valid to" point, which is the last valid time before a missing data block.
 }
 \description{
-This function fetches AQUAZIS time series data for a given station (\code{zrid})
-and interval, and identifies the latest timestamp (\code{valid_to}) before missing values occur.
-If the returned dataset has insufficient rows, it automatically extends the \code{begin} date
-in steps until enough data is available.
+This function retrieves and processes AQUAZIS time series data for a given hub and ZR-ID,
+and determines the latest timestamp before a continuous block of missing data (\code{NA}s).
+If the data is insufficient, it performs exponential backoff retries to fetch more historical data.
+}
+\examples{
+\dontrun{
+  hub <- "example_hub"
+  zrid <- "123456"
+  begin <- as.POSIXct("2025-01-01")
+  end <- as.POSIXct("2025-08-01")
+  valid_to <- get_az_valid_to(hub, zrid, begin, end)
+  print(valid_to)
+}
+
 }
