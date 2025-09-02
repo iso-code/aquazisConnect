@@ -11,9 +11,9 @@ options(scipen=999)
 
 install_github("iso-code/aquaZisConnect")
 library(aquazisConnect)
-hub<-"example.hub"
-shared_data<-"../shared_data"
-logs<-"../shared_data"
+hub<-"http://w-db10-pegel51:7979"
+shared_data<-"../data_latest"
+logs<-"../logs"
 
 check_hub_connection(hub)
 
@@ -42,7 +42,7 @@ verified_to<-get_az_valid_to(hub, zrid, begin, end, intervall = "l", stepsize = 
 zrlist<-get_aquazis_zrlist(hub,parameter="Wasserstand")
 zrids<-zrlist$zrid
 
-final_table<-get_verified_periods(hub, zrids[200:220], begin, end, intervall = "l", stepsize = 365, max_retries = 5)
+final_table<-get_verified_periods(hub, zrids, begin, end, intervall = "l", stepsize = 365, max_retries = 5)
 
 
 tt<-merge(zrlist,final_table) %>%  distinct(ort,zrid,parameter,start,valid,end)
