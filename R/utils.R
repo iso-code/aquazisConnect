@@ -277,27 +277,39 @@ create_aquazis_query<-function(hub,parameter){
   )
 
   full_url <- paste0(hub, "?", query_string)
-  con <- curl(full_url)
-  con <- NULL
-  result <- NULL
   
-  # Warnungen und Fehler abfangen
+  result <- NULL
+  con <- NULL
+  
   tryCatch({
-    con <- url(url)
-    json_text <- readLines(con, warn = FALSE)
-    result <<- fromJSON(json_text)
-    close(con)
-  }, warning = function(w) {
-    warning("Warnung beim Öffnen der URL oder Lesen der Daten: ", conditionMessage(w))
-    if (!is.null(con)) close(con)
-    result <<- data.frame()  # leere Tabelle als Fallback
+    # HTTP-Anfrage mit curl_fetch_memory machen
+    resp <- curl_fetch_memory(full_url)
+    
+    # Statuscode prüfen
+    if (resp$status_code != 200) {
+      message("HTTP Fehler ", resp$status_code, ": Daten konnten nicht geladen werden.")
+      return(data.frame())
+    }
+    
+    # Antwortinhalt in String umwandeln
+    json_text <- rawToChar(resp$content)
+    
+    # JSON parsen
+    result <- fromJSON(json_text)
+    
+    # Falls Ergebnis kein Dataframe ist, umwandeln
+    if (!is.data.frame(result)) {
+      result <- as.data.frame(result)
+    }
+    
   }, error = function(e) {
-    warning("Fehler beim Abrufen oder Parsen der Daten: ", conditionMessage(e))
-    if (!is.null(con)) close(con)
-    result <<- data.frame()  # leere Tabelle als Fallback
+    message("Fehler beim Abrufen oder Parsen der Daten: ", conditionMessage(e))
+    result <<- data.frame()
+  }, finally = {
+    # Hier gibt es keine offenen Verbindungen, aber falls du noch was schließen willst,
+    # kannst du das hier machen. curl_fetch_memory öffnet keine dauerhafte Verbindung.
   })
-  on.exit(closeAllConnections())
-
+  
   return(result)
 }
 
