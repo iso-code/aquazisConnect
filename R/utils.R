@@ -278,7 +278,24 @@ create_aquazis_query<-function(hub,parameter){
 
   full_url <- paste0(hub, "?", query_string)
   con <- curl(full_url)
-  result <- fromJSON(readLines(con,warn=FALSE))
+  con <- NULL
+  result <- NULL
+  
+  # Warnungen und Fehler abfangen
+  tryCatch({
+    con <- url(url)
+    json_text <- readLines(con, warn = FALSE)
+    result <<- fromJSON(json_text)
+    close(con)
+  }, warning = function(w) {
+    warning("Warnung beim Öffnen der URL oder Lesen der Daten: ", conditionMessage(w))
+    if (!is.null(con)) close(con)
+    result <<- data.frame()  # leere Tabelle als Fallback
+  }, error = function(e) {
+    warning("Fehler beim Abrufen oder Parsen der Daten: ", conditionMessage(e))
+    if (!is.null(con)) close(con)
+    result <<- data.frame()  # leere Tabelle als Fallback
+  })
   on.exit(closeAllConnections())
 
   return(result)
@@ -377,7 +394,7 @@ extract_az_ts<-function(zr_data, intervall="l"){
 get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
   i <- 1
   retry_count <- 0
-  wait_base <- 2    # initial wait time in seconds
+  wait_base <- 1    # initial wait time in seconds
   wait_time <- wait_base
   zr<-list()
 
@@ -417,6 +434,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
         message("Sufficient data found, breaking loop.")
         wait_time <- wait_base  # Reset wait time
         retry_count <- 0       # Reset retry count
+        Sys.sleep(wait_time)  
         break
       }
 
@@ -428,13 +446,13 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
         break()
       }
       # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
-      print(result$error_code)
+     # print(result$error_code)
       message("Insufficient data, increasing time window and retrying immediately.")
       begin <- begin - (60 * 60 * 24) * (13 + i)
       i <- i + stepsize
       
       Sys.sleep(wait_time)  
-      #wait_time <- min(wait_time * 2, 60)  # Exponentielles Backoff, max 60 Sekunden
+      #wait_time <- min(wait_time + 1, 60)  # Exponentielles Backoff, max 60 Sekunden
       #retry_count <- retry_count + 1
 
 #      if (retry_count > max_retries) {
@@ -448,7 +466,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     if (result$error_code == 429) {
       message(sprintf("Error 429 received. Waiting for %.1f seconds before retry...", wait_time))
       Sys.sleep(wait_time)
-      wait_time <- min(wait_time * 2, 60)
+      wait_time <- min(wait_time + 2, 60)
       retry_count <- retry_count + 1
 
       if (retry_count > max_retries) {

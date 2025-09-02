@@ -33,7 +33,7 @@ begin <- Sys.time()-(60*60*24)*30
 end <- Sys.time()
 zrid=zrlist$zrid
 intervall<-"l"
-zrid<-"47686"
+zrid<-"47767"
 #if timeseries produces only NA no data is available for the period.
 #Find the end of validated data here:
 verified_to<-get_az_valid_to(hub, zrid, begin, end, intervall = "l", stepsize = 365, max_retries = 5)
@@ -43,6 +43,8 @@ zrlist<-get_aquazis_zrlist(hub,parameter="Wasserstand")
 zrids<-zrlist$zrid
 
 final_table<-get_verified_periods(hub, zrids, begin, end, intervall = "l", stepsize = 365, max_retries = 5)
+
+as_meta[which(as_meta$ORT==zrlist$ort[which(zrlist$zrid == zrid)]),]
 
 
 tt<-merge(zrlist,final_table) %>%  distinct(ort,zrid,parameter,start,valid,end)
