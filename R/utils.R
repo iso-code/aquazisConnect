@@ -391,13 +391,6 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
         stop("Invalid data returned from get_aquazis_zr")
       }
 
-      if(ymd_hms(zr_data$data$Info$`MaxFokus-Von`)>ymd_hms(begin)) {
-        zr$V1=zr_data$data$Info$`MaxFokus-Von`
-        zr$V2=NA
-        message("No verified data found!")
-        break()
-        }
-
       zr <- extract_az_ts(zr_data, intervall)
       if (is.null(zr) || !is.data.frame(zr)) {
         stop("extract_az_ts returned invalid data")
@@ -427,6 +420,13 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
         break
       }
 
+    if(ymd_hms(zr_data$data$Info$`MaxFokus-Von`)>ymd_hms(begin)) {
+
+        zr$V1=zr_data$data$Info$`MaxFokus-Von`
+        zr$V2=NA
+        message("No verified data found!")
+        break()
+      }
       # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
       print(result$error_code)
       message("Insufficient data, increasing time window and retrying immediately.")
@@ -468,7 +468,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   zr$V2 <- as.numeric(zr$V2)
   zr$V1 <- lubridate::as_datetime(zr$V1)
   ts_start<-lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`)
-  ts_end<-lubridate::as_datetime(zr_data$data$Info$`Fokus-Von`)
+  ts_end<-lubridate::as_datetime(zr_data$data$Info$`Fokus-Bis`)
   valid_to <- lubridate::parse_date_time(zr$V1[max(which(is.na(zr$V2))) - 2],tz = "UTC", orders = "ymdHMS")
   if(length(valid_to)<1) valid_to=NA
 
