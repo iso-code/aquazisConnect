@@ -384,10 +384,12 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     # Versuche die Daten abzurufen, fang ALLE Fehler ab
     result <- tryCatch({
       zr_data <- get_aquazis_zr(hub, zrid, begin, end)
+      #print(zr_data)
       # Prüfen, ob der Rückgabewert valide ist (z.B. kein Fehlerobjekt)
       if (is.null(zr_data) || inherits(zr_data, "try-error")) {
         stop("Invalid data returned from get_aquazis_zr")
       }
+
       if(ymd_hms(zr_data$data$Info$`MaxFokus-Von`)>ymd_hms(begin)) {
         zr$V1=zr_data$data$Info$`MaxFokus-Von`
         zr$V2=NA
@@ -469,6 +471,50 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   return(df_verified)
 }
 
+#' Retrieve verified periods for multiple AQUAZIS time series
+#'
+#' This function iterates over a list of ZRIDs and determines the latest verified
+#' time for each series by calling [get_az_valid_to()]. The results are combined
+#' into a single tibble.
+#'
+#' @param hub Character string. Base URL of the AQUAZIS hub.
+#' @param zrids Character or numeric vector. One or more ZRID identifiers of time series.
+#' @param begin POSIXct or character. Start date/time of the query period.
+#' @param end POSIXct or character. End date/time of the query period.
+#' @param intervall Character string. Interval type:
+#' `"l"` for left time intervall of measurement or `"r"` for right intervall of measurement.
+#' @param stepsize Integer. Step size in days used for retrying data retrieval
+#' if insufficient values are returned. Default is 30.
+#' @param max_retries Integer. Maximum number of retry attempts per ZRID. Default is 5.
+#'
+#' @return A tibble containing the verified periods for all requested ZRIDs.
+#' Each row corresponds to one ZRID with its associated metadata and verified date range.
+#'
+#' @details
+#' The function calls [get_az_valid_to()] for each element in `zrids`. If the data
+#' cannot be retrieved immediately, retries are performed with increasing back-off
+#' using `stepsize` until either valid data is found or the maximum number of retries
+#' (`max_retries`) is reached.
+#'
+#' @examples
+#' \dontrun{
+#' hub_url <- "http://example-hub"
+#' zrids <- c("12345", "67890")
+#' begin <- Sys.time() - 60*60*24*30  # 30 days ago
+#' end <- Sys.time()
+#'
+#' verified <- get_verified_periods(
+#'   hub = hub_url,
+#'   zrids = zrids,
+#'   begin = begin,
+#'   end = end
+#' )
+#' print(verified)
+#' }
+#'
+#' @importFrom tibble tibble
+#' @importFrom dplyr bind_rows
+#' @export
 get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
 
   result <- tibble()
