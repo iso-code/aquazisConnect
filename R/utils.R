@@ -377,9 +377,10 @@ extract_az_ts<-function(zr_data, intervall="l"){
 get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
   i <- 1
   retry_count <- 0
-  wait_base <- 1    # initial wait time in seconds
+  wait_base <- 1.5    # initial wait time in seconds
   wait_time <- wait_base
   zr<-list()
+
   repeat {
     # Versuche die Daten abzurufen, fang ALLE Fehler ab
     result <- tryCatch({
@@ -421,14 +422,25 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
       #print(zr)
       if (nrow(zr) > 2) {
         message("Sufficient data found, breaking loop.")
+        wait_time <- wait_base  # Reset wait time
+        retry_count <- 0       # Reset retry count
         break
       }
 
       # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
+      print(result$error_code)
+      message("Insufficient data, increasing time window and retrying immediately.")
       begin <- begin - (60 * 60 * 24) * (13 + i)
       i <- i + stepsize
-      wait_time <- wait_base
-      message("Insufficient data, increasing time window and retrying immediately.")
+      
+      Sys.sleep(wait_time)  
+      wait_time <- min(wait_time * 2, 60)  # Exponentielles Backoff, max 60 Sekunden
+      retry_count <- retry_count + 1
+
+      if (retry_count > max_retries) {
+        stop("Max retries reached due to insufficient data.")
+      }
+
       next
     }
 

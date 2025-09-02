@@ -11,9 +11,9 @@ options(scipen=999)
 
 install_github("iso-code/aquaZisConnect")
 library(aquazisConnect)
-hub<-"http://w-db10-pegel51:7979"
-shared_data<-"../data_latest"
-logs<-"../logs"
+hub<-"example.hub"
+shared_data<-"../shared_data"
+logs<-"../shared_data"
 
 check_hub_connection(hub)
 
@@ -29,45 +29,33 @@ zrlist
 
 #get timeseries values from zrid in period
 ###############################################
-begin <- Sys.time()-(60*60*24)*14
+begin <- Sys.time()-(60*60*24)*30
 end <- Sys.time()
 zrid=zrlist$zrid
 intervall<-"l"
-
+zrid<-"47686"
 #if timeseries produces only NA no data is available for the period.
 #Find the end of validated data here:
-verified_to<-get_az_valid_to(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5)
+verified_to<-get_az_valid_to(hub, zrid, begin, end, intervall = "l", stepsize = 365, max_retries = 5)
 
 #Hier einmal freigegebenen Bereich durchsuchen für alle die Wasserstand haben
 zrlist<-get_aquazis_zrlist(hub,parameter="Wasserstand")
 zrids<-zrlist$zrid
 
-verified_to<-get_az_valid_to(hub,zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5)
+final_table<-get_verified_periods(hub, zrids[200:220], begin, end, intervall = "l", stepsize = 365, max_retries = 5)
 
-final_table<-get_verified_periods(hub, zrids, begin, end, intervall = "l", stepsize = 365, max_retries = 5)
+
+tt<-merge(zrlist,final_table) %>%  distinct(ort,zrid,parameter,start,valid,end)
+colnames(tt)[1]<-"ORT"
+final_meta<-merge(tt,as_meta) %>% arrange(NAME)
+write_rds(final_meta,"verified_levels_nrw.rds")
 
 ######################################################
 zr_data<-get_aquazis_zr(hub, zrid, begin, end)
 zr<-extract_az_ts(zr_data,"l")
 
 ########################################################
-
-ORT<-as_meta %>% filter(NAME=="Ahmsen") %>% distinct(ORT)
-
-parameter <- list(
-  f_ort= as.character(ORT),
-  f_parameter = "Wasserstand",
- #  f_defart = "K",
-  #  f_herkunft = "F",
-   # f_reihenart = "Z",
-   f_quelle = "P"
-)
-
-zrlist<-get_aquazis_zrlist(hub,parameter)
-zrlist
-
-
-bz# Rating Curves
+# Rating Curves
 ###################################
 ORT<-as_meta %>% filter(NAME=="Ahmsen") %>% distinct(ORT)
 
@@ -79,9 +67,6 @@ parameter <- list(
   #  f_reihenart = "Z",
     f_quelle = "P"
 )
-
-zrlist<-get_aquazis_zrlist(hub,parameter)
-zrlist
 
 #mylist<-strsplit(response$results$filename,"=")
 #result <- lapply(mylist, function(x) {
@@ -103,25 +88,7 @@ parameter <- list(
 
 )
 
-zrlist<-get_aquazis_zrlist(hub,parameter)
+zrlist<-get_aquazis_zrlist(hub,parameter="Wasserstand",art="M", aussage ="Mes")
 zrid<-zrlist$zrid
-
-data_query = list(zrid = as.character(zrid),
-#                  von = beginn,
- #                 bis = ende,
-                  zpform = "#Y#m#d#H#M#S",
-                  yform = "7.3f",
-                  compact = "true")
-
-zr_data<-get_aquazis_zr(hub, data_query)
-
-
-#zr_data$data$Info$`MaxFokus-Von` #zeitreihen beginn
-
-
-
-#dim(zr_data$data$Daten)
-#zr_data$data$Daten[41650:41702,]
-
 
 # Etawert,
