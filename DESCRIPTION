@@ -23,7 +23,6 @@ Imports:
     tibble,
     vroom,
     dplyr,
-    sf,
     httr,
     stats,
     lubridate
