@@ -182,17 +182,15 @@ get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL){
     )
   } else {stop("Error: Provide zrid and/or Parameter")}
 
-
-
   if(!is.null(parameter)){
     ts_list<-create_aquazis_query(zr_list_url,parameter)
 
   #  ts_list<-fromJSON(readLines(ts_list,warn=FALSE))
 
-    if(parameter$f_parameter == "Abflusskurve")
-      {return(ts_list)}
-    else
+    if(parameter$f_parameter != "Abflusskurve")
       {return(ts_list$results)}
+    else
+      {return(ts_list)}
   }
 
 }
@@ -229,6 +227,8 @@ get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL){
 #' @export
 get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
 
+zr_list_url<- paste0(hub,"/get_zr")
+
   if (is.null(zrid) || is.na(zrid)) {
     stop("Error: zrid NULL or NA")
   }
@@ -247,7 +247,7 @@ get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
                     yform = "7.3f",
                     compact = "true")
 
-  zr_list_url<- paste0(hub,"/get_zr")
+  
 
   ts_data<-create_aquazis_query(zr_list_url,parameter)
 #  ts_data<-fromJSON(readLines(ts_data,warn=FALSE))
@@ -277,68 +277,34 @@ create_aquazis_query<-function(hub,parameter){
   )
 
   full_url <- paste0(hub, "?", query_string)
+  result <- data.frame()
   
-  result <- NULL
-  con <- NULL
-  
-  tryCatch({
-    # HTTP-Anfrage mit curl_fetch_memory machen
+  result <- tryCatch({
+    # HTTP-Anfrage
     resp <- curl_fetch_memory(full_url)
     
+    if(resp$status_code == 500){
+      message("create_aquazis_query: Server error 500: data could not be loaded.")
+      return(resp)
+    }
+
     # Statuscode prüfen
     if (resp$status_code != 200) {
-      message("HTTP Fehler ", resp$status_code, ": Daten konnten nicht geladen werden.")
-      return(data.frame())
+      message("create_aquazis_query: HTTP error ", resp$status_code, ": data could not be loaded.")
+      return(resp)
     }
     
     # Antwortinhalt in String umwandeln
     json_text <- rawToChar(resp$content)
     
     # JSON parsen
-    result <- fromJSON(json_text)
+    return(fromJSON(json_text))
     
-    # Falls Ergebnis kein Dataframe ist, umwandeln
-    if (!is.data.frame(result)) {
-      result <- as.data.frame(result)
-    }
+    # Falls Ergebnis kein DataFrame ist, umwandeln
     
-  }, error = function(e) {
-    message("Fehler beim Abrufen oder Parsen der Daten: ", conditionMessage(e))
-    result <<- data.frame()
-  }, finally = {
-    # Hier gibt es keine offenen Verbindungen, aber falls du noch was schließen willst,
-    # kannst du das hier machen. curl_fetch_memory öffnet keine dauerhafte Verbindung.
   })
-  
-  return(result)
-}
 
-#' Get most recent ETA curves
-#'
-#' This function identifies two-digit values in a vector, finds those that occur
-#' at least twice, and returns the indices of the highest such value.
-#'
-#' @param vec Character vector. Input vector with numeric values as strings.
-#'
-#' @return An integer vector with indices of the highest repeated two-digit value.
-#' @export
-#'
-#' @examples
-#' vec <- c("01", "02", "12", "12", "07", "12", "09")
-#' get_recent_eta_curves(vec)
-get_recent_eta_curves<-function(vec){
-  # Filtere nur zweistellige Zahlen
-  zweistellig <- vec[nchar(vec) == 2]
-  # Finde welche mindestens zweimal vorkommen
-  counts <- table(zweistellig)
-  mehrfach <- names(counts[counts >= 2])
-  # Finde die höchste davon
-  hoechste <- max(as.numeric(mehrfach))
-  # Finde die Indizes dieser Zahl im Originalvektor
-  indizes <- which(vec == as.character(hoechste))
-  return(indizes)
 }
-
 
 #' Extract time series from AQUAZIS data
 #'
@@ -361,7 +327,19 @@ get_recent_eta_curves<-function(vec){
 #' @export
 extract_az_ts<-function(zr_data, intervall="l"){
 
-  zr <- as.data.frame(zr_data$data$Daten)  %>%   {
+empty_result <- data.frame(
+  V1 = NA,
+  V2 = NA,
+    stringsAsFactors = FALSE
+  )
+
+  zr <- as.data.frame(zr_data$data$Daten) 
+
+  if (nrow(zr) == 0) {
+   message("extract_az_ts: No data available.")
+   zr<-empty_result
+  } else {
+     zr <- zr  %>%   {
     if (intervall == "l") {
       select(., 1:2)
     } else if (intervall == "r") {
@@ -372,6 +350,7 @@ extract_az_ts<-function(zr_data, intervall="l"){
   }
   zr$V2<-as.numeric(zr$V2)
   zr$V1<-lubridate::as_datetime(zr$V1)
+}
   return(zr)
 }
 
@@ -406,112 +385,83 @@ extract_az_ts<-function(zr_data, intervall="l"){
 get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
   i <- 1
   retry_count <- 0
-  wait_base <- 1    # initial wait time in seconds
+  wait_base <- 1
   wait_time <- wait_base
-  zr<-list()
-
+  zr <- data.frame()
+  zr_data <- NULL
+  
   repeat {
-    # Versuche die Daten abzurufen, fang ALLE Fehler ab
-    result <- tryCatch({
-      zr_data <- get_aquazis_zr(hub, zrid, begin, end)
-      #print(zr_data)
-      # Prüfen, ob der Rückgabewert valide ist (z.B. kein Fehlerobjekt)
-      if (is.null(zr_data) || inherits(zr_data, "try-error")) {
-        stop("Invalid data returned from get_aquazis_zr")
-      }
-
-      zr <- extract_az_ts(zr_data, intervall)
-      if (is.null(zr) || !is.data.frame(zr)) {
-        stop("extract_az_ts returned invalid data")
-      }
-
-      list(success = TRUE, data = zr, error_code = NA)
-    }, error = function(e) {
-      msg <- e$message
-      # Prüfen, ob es sich um einen 429 Fehler handelt
-      if (grepl("429", msg)) {
-        list(success = FALSE, data = NULL, error_code = 429, message = msg)
-      } else if (grepl("cannot open the connection", msg)) {
-        # Verbindung konnte nicht geöffnet werden -> evtl. temporärer Fehler
-        list(success = FALSE, data = NULL, error_code = 0, message = msg)
-      } else {
-        stop(e)  # Alle anderen Fehler weitergeben
-      }
-    })
-
-    if (result$success) {
-      zr <- result$data
-      #print(zr)
-      if (nrow(zr) > 2) {
-        message("Sufficient data found, breaking loop.")
-        wait_time <- wait_base  # Reset wait time
-        retry_count <- 0       # Reset retry count
-        Sys.sleep(wait_time)  
-        break
-      }
-
-    if(ymd_hms(zr_data$data$Info$`MaxFokus-Von`)>ymd_hms(begin)) {
-
-        zr$V1=zr_data$data$Info$`MaxFokus-Von`
-        zr$V2=NA
-        message("No verified data found!")
-        break()
-      }
-      # Nicht genügend Daten, Zeitfenster erweitern ohne Pause
-     # print(result$error_code)
-      message("Insufficient data, increasing time window and retrying immediately.")
-      begin <- begin - (60 * 60 * 24) * (13 + i)
-      i <- i + stepsize
-      
-      Sys.sleep(wait_time)  
-      #wait_time <- min(wait_time + 1, 60)  # Exponentielles Backoff, max 60 Sekunden
-      #retry_count <- retry_count + 1
-
-#      if (retry_count > max_retries) {
-#        stop("Max retries reached due to insufficient data.")
-#      }
-
-      next
-    }
-
-    # Fehlerfall: 429 oder Verbindungsfehler
-    if (result$error_code == 429) {
-      message(sprintf("Error 429 received. Waiting for %.1f seconds before retry...", wait_time))
-      Sys.sleep(wait_time)
+    Sys.sleep(wait_time)
+    resp <- safe_get_aquazis_zr(hub, zrid, begin, end)
+   # print(resp)
+    if (resp$status_code == 429) {
+      message(sprintf("get_az_valid_to: HTTP 429: Rate Limit. Waiting %.1f s...", wait_time))
+   
       wait_time <- min(wait_time + 2, 60)
       retry_count <- retry_count + 1
-
       if (retry_count > max_retries) {
-        stop("Max retries reached due to repeated 429 errors.")
+        message("get_az_valid_to: Max an retries reached without after rate limiting.")
+        return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
       }
       next
     }
-
-    if (result$error_code == 0) {
-      message("Connection error, retrying immediately...")
-      Sys.sleep(1)
-      next
+    
+    if (resp$status_code != 200) {
+      message(sprintf("get_az_valid_to: error (%d): %s", resp$status_code, resp$error))
+      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
+    }
+    
+    zr_data <- resp$data
+    
+    # Zeitreihe extrahieren
+    zr <- tryCatch(extract_az_ts(zr_data, intervall),
+                   error = function(e) data.frame())
+    
+    if (!is.data.frame(zr) || nrow(zr) == 0) {
+      message("get_az_valid_to: extract_az_ts delivered no data frame or empty data frame.")
+      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
+    }
+    
+    # Genügend Daten vorhanden
+    if (nrow(zr) > 2) break
+    
+    # Sonst Zeitfenster erweitern
+    message("get_az_valid_to: No Data found. Increasing time range...")
+    begin <- begin - (60 * 60 * 24) * (13 + i)
+    i <- i + stepsize
+    retry_count <- retry_count + 1
+    if (retry_count > max_retries) {
+      message("get_az_valid_to: Max an retries reached without sufficient data.")
+      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
     }
   }
-
-  # Nach erfolgreichem Abruf
-  zr$V2 <- as.numeric(zr$V2)
-  zr$V1 <- lubridate::as_datetime(zr$V1)
-  ts_start<-lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`)
-  ts_end<-lubridate::as_datetime(zr_data$data$Info$`Fokus-Bis`)
-  valid_to <- lubridate::parse_date_time(zr$V1[max(which(is.na(zr$V2))) - 2],tz = "UTC", orders = "ymdHMS")
-  if(length(valid_to)<1) valid_to=NA
-
-  df_verified <- tibble(
+  
+  # --- Daten aufbereiten ---
+  zr$V2 <- suppressWarnings(as.numeric(zr$V2))
+  zr$V1 <- suppressWarnings(lubridate::as_datetime(zr$V1))
+  
+  ts_start <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`), error = function(e) NA)
+  ts_end   <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`Fokus-Bis`), error = function(e) NA)
+  
+  valid_to <- tryCatch({
+    if (any(is.na(zr$V2))) {
+      lubridate::parse_date_time(
+        zr$V1[max(which(is.na(zr$V2))) - 2],
+        tz = "UTC", orders = "ymdHMS"
+      )
+    } else NA
+  }, error = function(e) NA)
+  
+  tibble::tibble(
     zrid = zrid,
     start = ts_start,
     valid = valid_to,
-    end=ts_end
+    end   = ts_end
   )
-
-
-  return(df_verified)
 }
+
+
+
 
 #' Retrieve verified periods for multiple AQUAZIS time series
 #'
@@ -579,6 +529,84 @@ get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsi
   }
 
   return(result)
+}
+
+#' Safely fetch AQUAZIS time series data
+#'
+#' This function wraps `get_aquazis_zr()` with `tryCatch()` to handle potential errors
+#' when querying the AQUAZIS API. It returns a structured list with status codes and error messages.
+#'
+#' @param hub Character. Base URL of the AQUAZIS hub.
+#' @param zrid Character or numeric. ZR ID of the time series to fetch.
+#' @param begin POSIXct, Date, or character. Start datetime for the query period.
+#' @param end POSIXct, Date, or character. End datetime for the query period.
+#'
+#' @return A list with three elements:
+#' \describe{
+#'   \item{status_code}{Integer. HTTP-like status code: 200 = success, 429 = rate limited, 500 = other error.}
+#'   \item{data}{The result from `get_aquazis_zr()` if successful, otherwise NULL.}
+#'   \item{error}{Character string with the error message if the request failed, otherwise NULL.}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' safe_result <- safe_get_aquazis_zr(
+#'   hub = "http://example-hub",
+#'   zrid = "12345",
+#'   begin = "2025-01-01 00:00:00",
+#'   end = "2025-01-31 23:59:59"
+#' )
+#' if (safe_result$status_code == 200) {
+#'   print(safe_result$data)
+#' } else {
+#'   message("Error: ", safe_result$error)
+#' }
+#' }
+#'
+#' @export
+safe_get_aquazis_zr <- function(hub, zrid, begin, end) {
+  tryCatch({
+    # get_aquazis_zr liefert entweder DataFrame oder Liste (API-Antwort)
+    zr_data <- get_aquazis_zr(hub, zrid, begin, end)
+    
+    # kein Fehler → einfach zurückgeben
+    list(status_code = 200, data = zr_data, error = NULL)
+    
+  }, error = function(e) {
+    msg <- conditionMessage(e)
+    if (grepl("429", msg)) {
+      list(status_code = 429, data = NULL, error = msg)
+    } else {
+      list(status_code = 500, data = NULL, error = msg)
+    }
+  })
+}
+
+
+#' Get most recent ETA curves
+#'
+#' This function identifies two-digit values in a vector, finds those that occur
+#' at least twice, and returns the indices of the highest such value.
+#'
+#' @param vec Character vector. Input vector with numeric values as strings.
+#'
+#' @return An integer vector with indices of the highest repeated two-digit value.
+#' @export
+#'
+#' @examples
+#' vec <- c("01", "02", "12", "12", "07", "12", "09")
+#' get_recent_eta_curves(vec)
+get_recent_eta_curves<-function(vec){
+  # Filtere nur zweistellige Zahlen
+  zweistellig <- vec[nchar(vec) == 2]
+  # Finde welche mindestens zweimal vorkommen
+  counts <- table(zweistellig)
+  mehrfach <- names(counts[counts >= 2])
+  # Finde die höchste davon
+  hoechste <- max(as.numeric(mehrfach))
+  # Finde die Indizes dieser Zahl im Originalvektor
+  indizes <- which(vec == as.character(hoechste))
+  return(indizes)
 }
 
 #Available Parameters
