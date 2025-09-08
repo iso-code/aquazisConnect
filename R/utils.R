@@ -91,7 +91,7 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
   tryCatch(
     {
       # Abruf der Daten
-      raw_data <- readLines(url, warn = FALSE)
+      raw_data <- readLines(url, warn = FALSE, encoding = "UTF-8")
       json_data <- jsonlite::fromJSON(raw_data)
 
       # Optional speichern
@@ -139,7 +139,8 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
 #'
 #' @param hub Character. Base URL of the AQUAZIS hub.
 #' @param parameter Character. Request parameter (e.g. "Wasserstand").
-#'
+#' @param st_id Character. Optional station ID(s) to filter the request.
+#' @param type Character. Optional type to filter the request. (p=validated, mes=measurements)
 #' @return A tibble with results or, for certain parameters, the raw JSON list.
 #'
 #' @examples
@@ -149,50 +150,77 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
 #' }
 #'
 #' @export
-get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL){
+get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL, type=NULL){
 
   zr_list_url<- paste0(hub,"/zrlist_from_db")
+if(is.null(type)) type=""
 
-  if((!is.null(st_id) && length(st_id)>=1) && (!is.null(parameter) && length(parameter)>=1)){
-
+if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(parameter) >= 1) {
+  
+  if (type == "mes") {
     parameter <- list(
-    f_ort = st_id,
-    f_parameter = parameter,
-    f_defart = "K",
-    f_herkunft = "F",
-    f_reihenart = "Z",
-    f_quelle = "P"
-  )
-
-  } else if ((!is.null(st_id) || length(st_id)>=1)){
-      parameter <- list(
-      f_ort = st_id,
-      f_defart = "K",
-      f_herkunft = "F",
-      f_reihenart = "Z",
-      f_quelle = "P"
+      f_ort = as.character(st_id),
+      f_parameter = parameter,
+      f_defart = "M",
+      f_aussage = type
     )
-  } else if ((!is.null(parameter) || length(parameter)>=1)){
-      parameter <- list(
+  } else {
+    parameter <- list(
+      f_ort = st_id,
       f_parameter = parameter,
       f_defart = "K",
       f_herkunft = "F",
       f_reihenart = "Z",
-      f_quelle = "P"
+      f_quelle = type
     )
-  } else {stop("Error: Provide zrid and/or Parameter")}
+  }
+
+} else if (!is.null(st_id) && length(st_id) >= 1) {
+  
+  if (type == "mes") {
+    parameter <- list(
+      f_ort = as.character(st_id),
+      f_defart = "M",
+      f_aussage = type
+    )
+  } else {
+    parameter <- list(
+      f_ort = st_id,
+      f_defart = "K",
+      f_herkunft = "F",
+      f_reihenart = "Z",
+      f_quelle = type
+    )
+  }
+
+} else if (!is.null(parameter) && length(parameter) >= 1) {
+  
+  if (type == "mes") {
+    parameter <- list(
+      f_parameter = parameter,
+      f_defart = "M",
+      f_aussage = type
+    )
+  } else {
+    parameter <- list(
+      f_parameter = parameter,
+      f_defart = "K",
+      f_herkunft = "F",
+      f_reihenart = "Z",
+      f_quelle = type
+    )
+  }
+
+}
+
+    
+ else {stop("Error: Provide zrid and/or Parameter")}
 
   if(!is.null(parameter)){
     ts_list<-create_aquazis_query(zr_list_url,parameter)
+    return(ts_list$results)
 
-  #  ts_list<-fromJSON(readLines(ts_list,warn=FALSE))
-
-    if(parameter$f_parameter != "Abflusskurve")
-      {return(ts_list$results)}
-    else
-      {return(ts_list)}
-  }
-
+}
 }
 
 #Abflussmessungen = Abfluss
@@ -234,11 +262,13 @@ zr_list_url<- paste0(hub,"/get_zr")
   }
 
   if (is.null(hub) || is.na(hub)) {
-    stop("Error: HUB NULL or NA")
+    stop("Error: hub NULL or NA")
   }
 
+  if(is.POSIXct(begin) && is.POSIXct(end) ) { 
   begin<-format(begin,"%Y%m%d%H%M%S")
   end<-format(end,"%Y%m%d%H%M%S")
+  }
 
   parameter = list(zrid = as.character(zrid),
                     von = begin,
