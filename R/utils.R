@@ -472,7 +472,8 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   
   ts_start <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`), error = function(e) NA)
   ts_end   <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`Fokus-Bis`), error = function(e) NA)
-  
+  ts_valid <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Bis`), error = function(e) NA)
+
   valid_to <- tryCatch({
     if (any(is.na(zr$V2))) {
       lubridate::parse_date_time(
@@ -486,7 +487,9 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     zrid = zrid,
     start = ts_start,
     valid = valid_to,
+    ts_valid = ts_valid,
     end   = ts_end
+    
   )
 }
 

@@ -4,12 +4,16 @@
 \alias{get_aquazis_zrlist}
 \title{Get time series list (ZR) from an AQUAZIS hub}
 \usage{
-get_aquazis_zrlist(hub, st_id = NULL, parameter = NULL)
+get_aquazis_zrlist(hub, st_id = NULL, parameter = NULL, type = NULL)
 }
 \arguments{
 \item{hub}{Character. Base URL of the AQUAZIS hub.}
 
+\item{st_id}{Character. Optional station ID(s) to filter the request.}
+
 \item{parameter}{Character. Request parameter (e.g. "Wasserstand").}
+
+\item{type}{Character. Optional type to filter the request. (p=validated, mes=measurements)}
 }
 \value{
 A tibble with results or, for certain parameters, the raw JSON list.
