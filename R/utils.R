@@ -153,7 +153,7 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
 get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL, type=NULL){
 
   zr_list_url<- paste0(hub,"/zrlist_from_db")
-if(is.null(type)) type=""
+if(is.null(type)) type<-""
 
 if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(parameter) >= 1) {
   
@@ -431,25 +431,25 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
       retry_count <- retry_count + 1
       if (retry_count > max_retries) {
         message("get_az_valid_to: Max an retries reached without after rate limiting.")
-        return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
+         return(tibble::tibble(zrid = zrid, start = NA, valid = NA, ts_valid=NA, end = NA))
       }
       next
     }
     
     if (resp$status_code != 200) {
       message(sprintf("get_az_valid_to: error (%d): %s", resp$status_code, resp$error))
-      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
+      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, ts_valid=NA, end = NA))
     }
     
     zr_data <- resp$data
     
     # Zeitreihe extrahieren
     zr <- tryCatch(extract_az_ts(zr_data, intervall),
-                   error = function(e) data.frame())
+                   error = function(e) data.frame(),silent=TRUE)
     
     if (!is.data.frame(zr) || nrow(zr) == 0) {
       message("get_az_valid_to: extract_az_ts delivered no data frame or empty data frame.")
-      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
+      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, ts_valid=NA, end = NA))
     }
     
     # Genügend Daten vorhanden
@@ -462,7 +462,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     retry_count <- retry_count + 1
     if (retry_count > max_retries) {
       message("get_az_valid_to: Max an retries reached without sufficient data.")
-      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, end = NA))
+      return(tibble::tibble(zrid = zrid, start = NA, valid = NA, ts_valid=NA, end = NA))
     }
   }
   
