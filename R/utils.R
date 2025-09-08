@@ -453,7 +453,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     }
     
     # Genügend Daten vorhanden
-    if (nrow(zr) > 2) break
+    if (nrow(zr) > 3) break
     
     # Sonst Zeitfenster erweitern
     message("get_az_valid_to: No Data found. Increasing time range...")
