@@ -11,7 +11,7 @@ options(scipen=999)
 
 install_github("iso-code/aquaZisConnect")
 library(aquazisConnect)
-hub<-"http://w-db10-pegel51:7979"
+hub<-""
 shared_data<-"../data_latest"
 logs<-"../logs"
 
