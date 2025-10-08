@@ -153,7 +153,9 @@ get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
 get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL, type=NULL){
 
   zr_list_url<- paste0(hub,"/zrlist_from_db")
+  
 if(is.null(type)) type<-""
+if(is.null(parameter)) parameter<-""
 
 if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(parameter) >= 1) {
   
@@ -473,7 +475,9 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   ts_start <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Von`), error = function(e) NA)
   ts_end   <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`Fokus-Bis`), error = function(e) NA)
   ts_valid <- tryCatch(lubridate::as_datetime(zr_data$data$Info$`MaxFokus-Bis`), error = function(e) NA)
-
+  xcoord<-zr_data$data$Info$'ZR-X'
+  ycoord<-zr_data$data$Info$'ZR-Y'
+  
   valid_to <- tryCatch({
     if (any(is.na(zr$V2))) {
       lubridate::parse_date_time(
@@ -488,8 +492,9 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     start = ts_start,
     valid = valid_to,
     ts_valid = ts_valid,
-    end   = ts_end
-    
+    end   = ts_end,
+    xcoord = xcoord,
+    ycoord = ycoord
   )
 }
 
