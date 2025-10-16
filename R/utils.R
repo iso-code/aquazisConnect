@@ -313,7 +313,7 @@ create_aquazis_query<-function(hub,parameter){
   
   result <- tryCatch({
     # HTTP-Anfrage
-    resp <- curl_fetch_memory(full_url)
+    resp <- curl::curl_fetch_memory(full_url)
     
     if(resp$status_code == 500){
       message("create_aquazis_query: Server error 500: data could not be loaded.")
@@ -330,7 +330,7 @@ create_aquazis_query<-function(hub,parameter){
     json_text <- rawToChar(resp$content)
     
     # JSON parsen
-    return(fromJSON(json_text))
+    return(jsonlite::fromJSON(json_text))
     
     # Falls Ergebnis kein DataFrame ist, umwandeln
     
@@ -424,12 +424,13 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   
   repeat {
     Sys.sleep(wait_time)
+  
     resp <- safe_get_aquazis_zr(hub, zrid, begin, end)
    # print(resp)
     if (resp$status_code == 429) {
       message(sprintf("get_az_valid_to: HTTP 429: Rate Limit. Waiting %.1f s...", wait_time))
    
-      wait_time <- min(wait_time + 2, 60)
+      wait_time <- min(wait_time + 2, 10)
       retry_count <- retry_count + 1
       if (retry_count > max_retries) {
         message("get_az_valid_to: Max an retries reached without after rate limiting.")
@@ -439,6 +440,13 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     }
     
     if (resp$status_code != 200) {
+      if (resp$status_code == 500 && retry_count < max_retries) {
+        message(sprintf("get_az_valid_to: error (500): %s. Retry in %s...", resp$error,wait_time))
+        Sys.sleep(wait_time)
+        #wait_time <- min(wait_time + 2, 10)
+        retry_count <- retry_count + 1
+        next
+      }
       message(sprintf("get_az_valid_to: error (%d): %s", resp$status_code, resp$error))
       return(tibble::tibble(zrid = zrid, start = NA, valid = NA, ts_valid=NA, end = NA))
     }
@@ -459,7 +467,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     
     # Sonst Zeitfenster erweitern
     message("get_az_valid_to: No Data found. Increasing time range...")
-    begin <- begin - (60 * 60 * 24) * (13 + i)
+    begin <- begin - (60 * 60 * 24) + (13 + i)
     i <- i + stepsize
     retry_count <- retry_count + 1
     if (retry_count > max_retries) {
@@ -487,6 +495,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     } else NA
   }, error = function(e) NA)
   
+#  message(paste0("Processing Nr.",zrid))
   tibble::tibble(
     zrid = zrid,
     start = ts_start,
@@ -618,6 +627,86 @@ safe_get_aquazis_zr <- function(hub, zrid, begin, end) {
       list(status_code = 500, data = NULL, error = msg)
     }
   })
+}
+
+#' Retrieve verified periods in parallel
+#'
+#' This function calls \code{get_az_valid_to()} for multiple ZRIDs in parallel
+#' to efficiently retrieve verified time periods. Parallel execution is handled
+#' via the \pkg{furrr} package.
+#'
+#' @param hub A connection or identifier for the data hub used by \code{get_az_valid_to()}.
+#' @param zrids A vector of ZRID values for which to retrieve data.
+#' @param begin Start date of the query period (e.g. \code{"2024-01-01"}).
+#' @param end End date of the query period (e.g. \code{"2024-12-31"}).
+#' @param intervall Character string specifying the query interval 
+#'   (default: \code{"l"}; depends on the definition in \code{get_az_valid_to()}).
+#' @param stepsize Step size for the query (default: \code{30}).
+#' @param max_retries Maximum number of retry attempts in case of errors 
+#'   (default: \code{5}).
+#' @param workers Number of parallel worker processes (default: \code{4}).
+#'
+#' @return A \pkg{tibble} containing the combined results of all ZRIDs.
+#'   The structure depends on the output of \code{get_az_valid_to()}.
+#'
+#' @details
+#' The function uses \code{future_map()} from the \pkg{furrr} package to perform
+#' parallel execution. Each ZRID is processed using the helper function 
+#' \code{process_zrid()}, which wraps a call to \code{get_az_valid_to()} inside 
+#' a \code{tryCatch()} block for robust error handling.
+#'
+#' If a ZRID fails, a warning message is displayed and a row with \code{NA} values 
+#' is returned for that ZRID instead of stopping the entire process.
+#'
+#' @examples
+#' \dontrun{
+#' result <- get_verified_periods_parallel(
+#'   hub = my_hub_connection,
+#'   zrids = c("ZRID001", "ZRID002"),
+#'   begin = "2024-01-01",
+#'   end = "2024-12-31",
+#'   workers = 8
+#' )
+#' }
+#'
+#' @seealso [furrr::future_map()], [future::plan()], [get_az_valid_to()]
+#' @export
+#'
+get_verified_periods_parallel <- function(hub, zrids, begin, end, intervall = "l", stepsize = 30, max_retries = 5, workers = 4) {
+  
+  plan(multisession, workers = workers)
+  
+  # Helper function for processing a single ZRID
+process_zrid <- function(zrid) {
+  library(lubridate)
+  log_file <- file.path(tempdir(), paste0("log_zrid_", zrid, ".txt"))
+  tryCatch({
+    sink(log_file)  # Nachrichten in die Datei umleiten
+    message(paste0("Processing ZRID: ", zrid))
+    result <- get_az_valid_to(
+      hub = hub,
+      zrid = zrid,
+      begin = begin,
+      end = end,
+      intervall = intervall,
+      stepsize = stepsize,
+      max_retries = max_retries
+    )
+    sink()  
+    return(result)
+  }, error = function(e) {
+    sink()  
+    message(sprintf("Error processing ZRID %s: %s", zrid, conditionMessage(e)))
+    return(tibble::tibble(zrid = zrid, start = NA, valid = NA, ts_valid = NA, end = NA))
+  })
+}
+  
+  # Parallel processing with future_map
+  results <- future_map(zrids, process_zrid, .progress = TRUE)
+  
+  # Combine all results
+  result <- bind_rows(results)
+  return(result)
 }
 
 
