@@ -154,8 +154,8 @@ get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL, type=NULL){
 
   zr_list_url<- paste0(hub,"/zrlist_from_db")
   
-if(is.null(type)) type<-""
-if(is.null(parameter)) parameter<-""
+  if(is.null(type)) type<-""
+  if(is.null(parameter)) parameter<-""
 
 if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(parameter) >= 1) {
   
@@ -267,6 +267,11 @@ zr_list_url<- paste0(hub,"/get_zr")
     stop("Error: hub NULL or NA")
   }
 
+    all_data <- list()
+    last_date_prev <- NA
+
+repeat{
+
   if(is.POSIXct(begin) && is.POSIXct(end) ) { 
   begin<-format(begin,"%Y%m%d%H%M%S")
   end<-format(end,"%Y%m%d%H%M%S")
@@ -282,7 +287,26 @@ zr_list_url<- paste0(hub,"/get_zr")
   
 
   ts_data<-create_aquazis_query(zr_list_url,parameter)
-#  ts_data<-fromJSON(readLines(ts_data,warn=FALSE))
+  all_data[[length(all_data) + 1]] <- ts_data$data$Daten
+
+  last_date <- max(ts_data$data$Daten[,1], na.rm = TRUE)
+  print(paste0("Retrieved data up to: ", last_date))
+
+  if(last_date == end || (!is.na(last_date_prev) && last_date == last_date_prev)){ 
+    break
+  }
+  
+  begin <- as.POSIXct(last_date, format="%Y%m%d%H%M%S")+1
+  end <- as.POSIXct(end, format="%Y%m%d%H%M%S")
+  
+  last_date_prev <- last_date
+
+  }
+
+  if (length(all_data) > 0) {
+    ts_data$data$Daten <- do.call(rbind, all_data)
+  }
+
   return(ts_data)
 }
 
