@@ -78,54 +78,63 @@ check_hub_connection <- function(hub, timeout = 5, logpath = NULL) {
 #' }
 #'
 #' @export
-get_aquazis_meta <- function(hub, ort, flatten="true", logpath = NULL) {
-
+get_aquazis_meta <- function(hub, ort, logpath = NULL, flatten = "true") {
   if (is.null(hub) || !nzchar(hub)) {
     stop("Parameter 'hub' darf nicht NULL oder leer sein.")
   }
 
-  if (!is.null(ort)) {
-  url <- paste0(hub, "/get_sd?f_ort=",ort,"&flatten=",flatten)  
+  hub <- sub("/+$", "", hub)
+
+  if (is.logical(flatten)) {
+    flatten_q <- if (isTRUE(flatten)) "true" else "false"
   } else {
-    url <- paste0(hub,"/get_sd?flatten=",flatten)
+    flatten_q <- tolower(as.character(flatten))
+    if (!flatten_q %in% c("true", "false")) {
+      stop("Parameter 'flatten' muss TRUE/FALSE oder 'true'/'false' sein.")
     }
-  
- 
+  }
+
   log_file <- if (!is.null(logpath)) file.path(logpath, "try.outFile") else NULL
+  log_it <- function(level, msg) {
+    if (!is.null(log_file)) {
+      readr::write_lines(
+        paste(level, format(Sys.time(), "%Y-%m-%d %H:%M:%S%z"), msg),
+        log_file,
+        append = TRUE
+      )
+    }
+  }
 
-  tryCatch(
+  if (!is.null(ort) && nzchar(ort)) {
+    url <- paste0(hub, "/get_sd?f_ort=", curl::curl_escape(ort), "&flatten=", flatten_q)
+  } else {
+    url <- paste0(hub, "/get_sd?flatten=", flatten_q)
+  }
+
+  json_data <- tryCatch(
     {
-      # Abruf der Daten
       raw_data <- readLines(url, warn = FALSE, encoding = "UTF-8")
-      json_data <- jsonlite::fromJSON(raw_data)
-
-      # Optional speichern
-      if (!is.null(fallback_file)) {
-        readr::write_rds(json_data, fallback_file)
-      }
-
-      return(tibble::as_tibble(json_data$data))
+      jsonlite::fromJSON(raw_data, simplifyVector = TRUE)
     },
     warning = function(w) {
-      if (!is.null(log_file)) {
-        readr::write_lines(
-          paste("WARNUNG:", Sys.time(), conditionMessage(w)),
-          log_file,
-          append = TRUE
-        )
-      }
+      log_it("WARNUNG:", conditionMessage(w))
       invokeRestart("muffleWarning")
     },
     error = function(e) {
-      if (!is.null(log_file)) {
-        readr::write_lines(
-          paste("FEHLER:", Sys.time(), conditionMessage(e)),
-          log_file,
-          append = TRUE
-        )
-      }
+      log_it("FEHLER:", conditionMessage(e))
+      NULL
     }
   )
+
+  if (is.null(json_data)) {
+    return(tibble::tibble())
+  }
+
+  out <- if (!is.null(json_data$data)) json_data$data else json_data
+  if (is.data.frame(out)) {
+    return(tibble::as_tibble(out))
+  }
+  tibble::as_tibble(out, .name_repair = "unique")
 }
 
 
