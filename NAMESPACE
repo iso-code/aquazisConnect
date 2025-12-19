@@ -3,6 +3,7 @@
 export(check_hub_connection)
 export(create_aquazis_query)
 export(extract_az_ts)
+export(fallback_meta)
 export(get_aquazis_meta)
 export(get_aquazis_zr)
 export(get_aquazis_zrlist)

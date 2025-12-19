@@ -4,13 +4,14 @@
 \alias{get_aquazis_meta}
 \title{Get metadata (station information) from an AQUAZIS hub}
 \usage{
-get_aquazis_meta(hub, shared_data = NULL, logpath = NULL)
+get_aquazis_meta(hub, ort, flatten = "true", logpath = NULL)
 }
 \arguments{
 \item{hub}{Character. Base URL of the AQUAZIS hub (must not be \code{NULL} or empty).}
 
-\item{shared_data}{Character (optional). Path to a directory where fallback metadata
-is stored or should be saved as "aquazis_stations.rds".}
+\item{ort}{Filter ORT by pattern, ? is playceholder for one character, * is for multiple characters}
+
+\item{flatten}{Character. Whether to flatten the JSON response (default: "true").}
 
 \item{logpath}{Character (optional). Path to a directory where warnings and errors
 will be logged in "try.outFile".}
