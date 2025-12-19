@@ -78,14 +78,20 @@ check_hub_connection <- function(hub, timeout = 5, logpath = NULL) {
 #' }
 #'
 #' @export
-get_aquazis_meta <- function(hub, shared_data = NULL, logpath = NULL) {
+get_aquazis_meta <- function(hub, ort, flatten="true", shared_data = NULL, logpath = NULL) {
+
   if (is.null(hub) || !nzchar(hub)) {
     stop("Parameter 'hub' darf nicht NULL oder leer sein.")
   }
 
-  # Ziel-URL vorbereiten
-  url <- paste0(hub, "/get_sd?f_ort=%2A")
-  fallback_file <- if (!is.null(shared_data)) file.path(shared_data, "aquazis_stations.rds") else NULL
+  if (!is.null(ort)) {
+  url <- paste0(hub, "/get_sd?f_ort=",ort,"&flatten=",flatten)  
+  } else {
+    url <- paste0(hub,"/get_sd?flatten=",flatten)
+    }
+  
+
+  fallback_file <- if (!is.null(shared_data)) {file.path(shared_data, "aquazis_stations.rds")} else NULL
   log_file <- if (!is.null(logpath)) file.path(logpath, "try.outFile") else NULL
 
   tryCatch(
@@ -157,7 +163,7 @@ get_aquazis_zrlist<-function(hub, st_id=NULL, parameter=NULL, type=NULL){
   if(is.null(type)) type<-""
   if(is.null(parameter)) parameter<-""
 
-if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(parameter) >= 1) {
+if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(parameter) > 1) {
   
   if (type == "mes") {
     parameter <- list(
@@ -290,7 +296,13 @@ repeat{
   all_data[[length(all_data) + 1]] <- ts_data$data$Daten
 
   last_date <- max(ts_data$data$Daten[,1], na.rm = TRUE)
-  print(paste0("Retrieved data up to: ", last_date))
+
+  if (!is.finite(last_date)) {
+  warning("Kein gültiges Datum gefunden (alle Werte NA oder ungültig).")
+  last_date <- NA
+  }
+
+  message(paste0("Retrieved data up to: ", last_date))
 
   if(last_date == end || (!is.na(last_date_prev) && last_date == last_date_prev)){ 
     break
@@ -350,14 +362,14 @@ create_aquazis_query<-function(hub,parameter){
       return(resp)
     }
     
+        
     # Antwortinhalt in String umwandeln
     json_text <- rawToChar(resp$content)
-    
+   #write(message(nchar(json_text, type = "bytes")),file="log.tmp",append=TRUE)
     # JSON parsen
     return(jsonlite::fromJSON(json_text))
     
-    # Falls Ergebnis kein DataFrame ist, umwandeln
-    
+
   })
 
 }
