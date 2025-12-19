@@ -63,8 +63,8 @@ check_hub_connection <- function(hub, timeout = 5, logpath = NULL) {
 #' If the request fails, a fallback `.rds` file can be used (if `shared_data` is specified).
 #'
 #' @param hub Character. Base URL of the AQUAZIS hub (must not be `NULL` or empty).
-#' @param shared_data Character (optional). Path to a directory where fallback metadata
-#'   is stored or should be saved as "aquazis_stations.rds".
+#' @param ort Filter ORT by pattern, ? is playceholder for one character, * is for multiple characters
+#' @param flatten Character. Whether to flatten the JSON response (default: "true").
 #' @param logpath Character (optional). Path to a directory where warnings and errors
 #'   will be logged in "try.outFile".
 #'
@@ -78,7 +78,7 @@ check_hub_connection <- function(hub, timeout = 5, logpath = NULL) {
 #' }
 #'
 #' @export
-get_aquazis_meta <- function(hub, ort, flatten="true", shared_data = NULL, logpath = NULL) {
+get_aquazis_meta <- function(hub, ort, flatten="true", logpath = NULL) {
 
   if (is.null(hub) || !nzchar(hub)) {
     stop("Parameter 'hub' darf nicht NULL oder leer sein.")
@@ -90,8 +90,7 @@ get_aquazis_meta <- function(hub, ort, flatten="true", shared_data = NULL, logpa
     url <- paste0(hub,"/get_sd?flatten=",flatten)
     }
   
-
-  fallback_file <- if (!is.null(shared_data)) {file.path(shared_data, "aquazis_stations.rds")} else NULL
+ 
   log_file <- if (!is.null(logpath)) file.path(logpath, "try.outFile") else NULL
 
   tryCatch(
@@ -124,14 +123,6 @@ get_aquazis_meta <- function(hub, ort, flatten="true", shared_data = NULL, logpa
           log_file,
           append = TRUE
         )
-      }
-
-      # Fallback nur wenn Datei existiert
-      if (!is.null(fallback_file) && file.exists(fallback_file)) {
-        fallback_data <- readr::read_rds(fallback_file)
-        return(tibble::as_tibble(fallback_data))
-      } else {
-        stop("Abruf fehlgeschlagen und keine Fallback-Datei verfügbar.")
       }
     }
   )
@@ -771,6 +762,31 @@ get_recent_eta_curves<-function(vec){
   indizes <- which(vec == as.character(hoechste))
   return(indizes)
 }
+
+#' Write consolidated AQUAZIS metadata as fallback RDS file
+#'
+#' This function combines a list of metadata tibbles into a single tibble,
+#' removes duplicates, and saves the result as an RDS file in the specified directory.
+#' The purpose is to provide a consolidated fallback after parallel retrieval of metadata.
+#'
+#' @param meta_list List of tibbles. The metadata, typically the result of parallel retrieval.
+#' @param shared_data Character. Path to the directory where \code{aquazis_stations.rds} will be saved.
+#'
+#' @return No return value. The function is called for its side effect (writing the file).
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' fallback_meta(meta_list, "data_latest")
+#' }
+fallback_meta <- function (meta_list,shared_data)
+{
+meta_tibble <- dplyr::bind_rows(meta_list) %>% dplyr::distinct()
+fallback_file <- file.path(shared_data, "aquazis_stations.rds")
+if(!dir.exists(shared_data)) dir.create(shared_data, recursive = TRUE)
+readr::write_rds(meta_tibble, fallback_file)
+}
+
 
 #Available Parameters
 #[1] ""                     "C * Wurzel(I)"        "Batteriespannung"     "Q=C*Wurzel(I)*P"      "Potenzfunktion_12"    "Q = vm * A"
