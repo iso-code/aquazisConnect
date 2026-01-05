@@ -294,23 +294,16 @@ repeat{
   ts_data<-create_aquazis_query(zr_list_url,parameter)
   all_data[[length(all_data) + 1]] <- ts_data$data$Daten
 
-  last_date <- max(ts_data$data$Daten[,1], na.rm = TRUE)
+  last_date <- as.numeric(max(ts_data$data$Daten[,1], na.rm = TRUE))
 
-  if (!is.character(last_date)) {
-  warning("Kein gültiges Datum gefunden (alle Werte NA oder ungültig).")
-  last_date <- NA
-  }
+  message(paste0("Retrieved data up to: ", as.character(last_date)))
 
-  message(paste0("Retrieved data up to: ", last_date))
-
-  if(last_date == end || (!is.na(last_date_prev) && last_date == last_date_prev)){ 
+  if(last_date >= as.numeric(end) || (is.na(last_date) )){ 
     break
   }
   
-  begin <- as.POSIXct(last_date, format="%Y%m%d%H%M%S")+1
+  begin <- as.POSIXct(as.character(last_date), format="%Y%m%d%H%M%S")+1
   end <- as.POSIXct(end, format="%Y%m%d%H%M%S")
-  
-  last_date_prev <- last_date
 
   }
 
