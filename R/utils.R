@@ -298,6 +298,13 @@ repeat{
 
   message(paste0("Retrieved data up to: ", as.character(last_date)))
 
+    # Abbruch, wenn last_date zweimal hintereinander gleich ist
+    if (!is.na(last_date_prev) && last_date == last_date_prev) {
+      message("Abbruch: last_date ist final date of period.")
+      break
+    }
+    last_date_prev <- last_date
+
   if(last_date >= as.numeric(end) || (is.na(last_date) )){ 
     break
   }
