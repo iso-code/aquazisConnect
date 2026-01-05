@@ -278,10 +278,9 @@ zr_list_url<- paste0(hub,"/get_zr")
 
 repeat{
 
-  if(is.POSIXct(begin) && is.POSIXct(end) ) { 
-  begin<-format(begin,"%Y%m%d%H%M%S")
-  end<-format(end,"%Y%m%d%H%M%S")
-  }
+  if(is.POSIXct(begin))  begin<-format(begin,"%Y%m%d%H%M%S")
+  if(is.POSIXct(end))  end<-format(end,"%Y%m%d%H%M%S")
+  
 
   parameter = list(zrid = as.character(zrid),
                     von = begin,
@@ -297,7 +296,7 @@ repeat{
 
   last_date <- max(ts_data$data$Daten[,1], na.rm = TRUE)
 
-  if (!is.finite(last_date)) {
+  if (!is.character(last_date)) {
   warning("Kein gültiges Datum gefunden (alle Werte NA oder ungültig).")
   last_date <- NA
   }
