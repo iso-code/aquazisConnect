@@ -796,6 +796,135 @@ readr::write_rds(meta_tibble, fallback_file)
 }
 
 
+#' Detect Gaps in a Time Series
+#'
+#' This function identifies gaps in a time series based on an expected time interval.
+#' A gap is defined as a period where the difference between consecutive timestamps 
+#' exceeds the expected interval.
+#'
+#' @param time A vector of timestamps (character, Date, or POSIXct).
+#' @param value A numeric vector of measurements corresponding to \code{time}. Only 
+#' used to align timestamps; gaps are determined from \code{time}.
+#' @param expected_interval A string specifying the expected interval between 
+#' consecutive timestamps. Supported values: \code{"min"}, \code{"5min"}, 
+#' \code{"10min"}, \code{"15min"}, \code{"30min"}, \code{"hour"}, \code{"day"}.
+#' Defaults to \code{"hour"}.
+#'
+#' @return A data frame containing the detected gaps with columns:
+#' \describe{
+#'   \item{start}{Timestamp at the beginning of the gap.}
+#'   \item{end}{Timestamp at the end of the gap.}
+#'   \item{gap_minutes}{Duration of the gap in minutes.}
+#' }
+#'
+#' @details
+#' The function first converts the input timestamps to POSIXct. It calculates 
+#' differences between consecutive timestamps in minutes, then compares them 
+#' to the expected interval. Any difference larger than the expected interval is 
+#' recorded as a gap.
+#'
+#' @examples
+#' time <- as.POSIXct(c("2026-01-01 00:00", "2026-01-01 01:00", 
+#'                      "2026-01-01 03:30", "2026-01-01 04:00"))
+#' value <- c(1, 2, 3, 4)
+#' detect_gaps(time, value, expected_interval = "hour")
+#'
+#' @export
+detect_gaps <- function(datetime, value, expected_interval = "hour") {
+  # Zeitstempel in POSIXct umwandeln
+ #as.POSIXct(time, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+
+  # Berechne Differenzen in Minuten
+  diffs <- c(NA, as.numeric(difftime(datetime, lag(datetime), units = "mins")))
+  
+  # Bestimme erwartetes Intervall in Minuten
+  interval_min <- switch(expected_interval,
+                         "min" = 1,
+                         "5min" = 5,
+                         "10min" = 10,
+                         "15min" = 15,
+                         "30min" = 30,
+                         "hour" = 60,
+                         "day" = 1440,
+                         stop("Unbekanntes Intervall"))
+  
+  # Lücken identifizieren
+  gaps <- diffs > interval_min
+  gap_info <- data.frame(
+    start = datetime[which(gaps)],
+    end = datetime[which(gaps) + 1],
+    gap_minutes = diffs[which(gaps)]
+  )
+  
+  return(gap_info)
+}
+
+#' Plot Gaps in a Time Series
+#'
+#' This function creates a plot of a time series with highlighted gaps. 
+#' Gaps are shown as red bars below the x-axis.
+#'
+#' @param time A vector of time points (e.g., POSIXct or numeric).
+#' @param value A numeric vector of corresponding measurements.
+#' @param gap_info A data frame containing gap information. Must have at least 
+#' the columns \code{start} and \code{end} indicating the beginning and end of each gap.
+#'
+#' @return Prints a ggplot2 object of the time series with gaps highlighted.
+#'
+#' @details
+#' - Points of the time series are plotted in blue.
+#' - The time series line is drawn in grey.
+#' - Gaps (from \code{gap_info}) are shown as red bars from y = 0 to y = -10.
+#' - Titles and axis labels are set automatically.
+#'
+#' @examples
+#' time <- seq.POSIXt(from = as.POSIXct("2026-01-01 00:00"), 
+#'                    to = as.POSIXct("2026-01-01 12:00"), by = "hour")
+#' value <- sin(seq(0, 12, length.out = 13))
+#' gap_info <- data.frame(start = as.POSIXct(c("2026-01-01 03:00", "2026-01-01 09:00")),
+#'                        end   = as.POSIXct(c("2026-01-01 04:00", "2026-01-01 10:00")))
+#' gap_plot(time, value, gap_info)
+#'
+#' @import ggplot2
+#' @export
+gap_plot <- function(station_no = "no_number", station_name = "no_name", time_vec, value, gap_info, interval_min){  
+  # Basisdaten
+  plot_data <- data.frame(time_vec = as.POSIXct(time_vec), value = value)
+  
+  # Optional: rote Balken unterhalb des Minimums
+  y_bottom <- min(value, na.rm = TRUE) - 0.05 * diff(range(value, na.rm = TRUE))
+  
+  # Plot
+  p <- ggplot(plot_data, aes(x = time_vec, y = value)) +
+    geom_point(color = "blue", size = 2) +
+    geom_line(color = "grey") +
+    geom_segment(data = gap_info, aes(x = start, xend = end, y = 0, yend = -10), color = "red", size = 2) +
+    labs(
+      title = paste0(station_name, " (", station_no, ")"),
+      subtitle = paste("Rote Balken = Lücken > ", interval_min, sep=""),
+      x = "Zeit", y = "Pegel [m]"
+    ) +
+    theme_minimal(base_size = 14) +
+    scale_x_datetime(
+      date_breaks = "2 year",
+      date_labels = "%Y"
+    ) +
+    scale_y_continuous(
+      breaks = scales::pretty_breaks(n = 10),
+      minor_breaks = NULL
+    ) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.y = element_text(size = 12),
+      axis.title.x = element_text(size = 14),
+      axis.title.y = element_text(size = 14),
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12)
+    )
+  return(p)
+}
+
+
 #Available Parameters
 #[1] ""                     "C * Wurzel(I)"        "Batteriespannung"     "Q=C*Wurzel(I)*P"      "Potenzfunktion_12"    "Q = vm * A"
 #[7] "Abfluss"              "Abflussdifferenz"     "Abflussfülle"         "Abflusskurven"        "Abflusskurve"         "Abflussmessergebnis"
