@@ -4,17 +4,17 @@
 \alias{get_aquazis_meta}
 \title{Get metadata (station information) from an AQUAZIS hub}
 \usage{
-get_aquazis_meta(hub, ort, flatten = "true", logpath = NULL)
+get_aquazis_meta(hub, ort, logpath = NULL, flatten = "true")
 }
 \arguments{
 \item{hub}{Character. Base URL of the AQUAZIS hub (must not be \code{NULL} or empty).}
 
 \item{ort}{Filter ORT by pattern, ? is playceholder for one character, * is for multiple characters}
 
-\item{flatten}{Character. Whether to flatten the JSON response (default: "true").}
-
 \item{logpath}{Character (optional). Path to a directory where warnings and errors
 will be logged in "try.outFile".}
+
+\item{flatten}{Character. Whether to flatten the JSON response (default: "true").}
 }
 \value{
 A tibble containing the metadata (\code{data}) from the AQUAZIS hub.
