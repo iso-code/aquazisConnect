@@ -863,6 +863,7 @@ detect_gaps <- function(datetime, value, expected_interval = "hour") {
 #' @examples
 #' result_tbl <- add_gap_days_per_year(gap_info, result_tbl = NULL, station_no = 12345, year_start = 1991, year_end = 2021)
 add_gap_days_per_year <- function(gap_info, result_tbl = NULL, station_no = NA, year_start, year_end) {
+ 
  # require(dplyr)
  # require(lubridate)
  # require(tidyr)
