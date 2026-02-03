@@ -865,21 +865,19 @@ detect_gaps <- function(datetime, value, expected_interval = "hour") {
 #' 
 #' @export
 add_gap_days_per_year <- function(gap_info, result_tbl = NULL, station_no = NA, year_start, year_end) {
- 
- # require(dplyr)
- # require(lubridate)
- # require(tidyr)
-  
-  # Alle Jahre im Bereich als Spaltennamen
   years <- seq(year_start, year_end)
   
-  # Gap-Tage pro Jahr berechnen
   gap_tbl <- gap_info %>%
-    mutate(year = year(start), day = as.Date(start)) %>%
-    filter(year %in% years) %>%
-    group_by(year) %>%
-    summarise(n_days = n_distinct(day), .groups = "drop") %>%
+    dplyr::mutate(year = lubridate::year(start), day = as.Date(start)) %>%
+    dplyr::filter(year %in% years) %>%
+    dplyr::group_by(year) %>%
+    dplyr::summarise(n_days = dplyr::n_distinct(day), .groups = "drop") %>%
     tidyr::pivot_wider(names_from = year, values_from = n_days, values_fill = 0)
+  
+  # Wenn nach dem Filtern keine Jahre übrig sind: Zeile mit Nullen erzeugen
+  if (nrow(gap_tbl) == 0) {
+    gap_tbl <- as.data.frame(as.list(setNames(rep(0, length(years)), years)))
+  }
   
   # Fehlende Jahre ergänzen (mit 0)
   for (y in years) {
@@ -888,15 +886,13 @@ add_gap_days_per_year <- function(gap_info, result_tbl = NULL, station_no = NA, 
     }
   }
   
-  # station_no ergänzen
   gap_tbl$station_no <- station_no
-  gap_tbl <- gap_tbl %>% select(station_no, as.character(years))
+  gap_tbl <- gap_tbl %>% dplyr::select(station_no, as.character(years))
   
-  # An bestehenden Tibble anhängen oder neuen erzeugen
   if (is.null(result_tbl)) {
     result_tbl <- gap_tbl
   } else {
-    result_tbl <- bind_rows(result_tbl, gap_tbl)
+    result_tbl <- dplyr::bind_rows(result_tbl, gap_tbl)
   }
   return(result_tbl)
 }
