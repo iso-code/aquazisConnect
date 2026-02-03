@@ -824,7 +824,7 @@ detect_gaps <- function(datetime, value, expected_interval = "hour") {
  #as.POSIXct(time, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
 
   # Berechne Differenzen in Minuten
-  diffs <- c(NA, as.numeric(difftime(datetime, lag(datetime), units = "mins")))
+  timeframe<-data.frame(time1=time_vec, lag=lag(time_vec), diff=as.numeric(difftime(time_vec, lag(time_vec),units="mins")))
   
   # Bestimme erwartetes Intervall in Minuten
   interval_min <- switch(expected_interval,
@@ -838,14 +838,64 @@ detect_gaps <- function(datetime, value, expected_interval = "hour") {
                          stop("Unbekanntes Intervall"))
   
   # Lücken identifizieren
-  gaps <- diffs > interval_min
+  gaps <- timeframe$diff > interval_min
   gap_info <- data.frame(
-    start = datetime[which(gaps)],
-    end = datetime[which(gaps) + 1],
-    gap_minutes = diffs[which(gaps)]
+    start = timeframe$time1[which(gaps)],
+    end = timeframe$lag[which(gaps)],
+    gap_minutes = timeframe$diff[which(gaps)]
   )
   
   return(gap_info)
+}
+
+#' Count the number of days with data gaps per year and append the result to a result tibble
+#'
+#' This function takes a gap table (gap_info), calculates the number of days with data gaps per year for a given year range,
+#' and appends the result to an existing result tibble (result_tbl). If result_tbl is NULL, a new result tibble is created.
+#'
+#' @param gap_info Dataframe with at least a 'start' column (POSIXct) containing the start of each gap.
+#' @param result_tbl (Optional) An existing result tibble to append to. Default: NULL (a new tibble will be created).
+#' @param station_no Station number to assign to the result row.
+#' @param year_start Start year of the evaluation period (inclusive).
+#' @param year_end End year of the evaluation period (inclusive).
+#'
+#' @return A tibble with one row per station and one column per year in the range, containing the number of days with gaps.
+#' @examples
+#' result_tbl <- add_gap_days_per_year(gap_info, result_tbl = NULL, station_no = 12345, year_start = 1991, year_end = 2021)
+add_gap_days_per_year <- function(gap_info, result_tbl = NULL, station_no = NA, year_start, year_end) {
+ # require(dplyr)
+ # require(lubridate)
+ # require(tidyr)
+  
+  # Alle Jahre im Bereich als Spaltennamen
+  years <- seq(year_start, year_end)
+  
+  # Gap-Tage pro Jahr berechnen
+  gap_tbl <- gap_info %>%
+    mutate(year = year(start), day = as.Date(start)) %>%
+    filter(year %in% years) %>%
+    group_by(year) %>%
+    summarise(n_days = n_distinct(day), .groups = "drop") %>%
+    tidyr::pivot_wider(names_from = year, values_from = n_days, values_fill = 0)
+  
+  # Fehlende Jahre ergänzen (mit 0)
+  for (y in years) {
+    if (!(as.character(y) %in% colnames(gap_tbl))) {
+      gap_tbl[[as.character(y)]] <- 0
+    }
+  }
+  
+  # station_no ergänzen
+  gap_tbl$station_no <- station_no
+  gap_tbl <- gap_tbl %>% select(station_no, as.character(years))
+  
+  # An bestehenden Tibble anhängen oder neuen erzeugen
+  if (is.null(result_tbl)) {
+    result_tbl <- gap_tbl
+  } else {
+    result_tbl <- bind_rows(result_tbl, gap_tbl)
+  }
+  return(result_tbl)
 }
 
 #' Plot Gaps in a Time Series
