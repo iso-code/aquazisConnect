@@ -261,63 +261,58 @@ if (!is.null(st_id) && length(st_id) >= 1 && !is.null(parameter) && length(param
 #' }
 #'
 #' @export
-get_aquazis_zr<-function(hub=NULL, zrid=NULL, begin="", end=""){
+get_aquazis_zr <- function(hub = NULL, zrid = NULL, begin = "", end = "", max_years = 1, pause_sec = 0.5, verbose = TRUE) {
+  zr_list_url <- paste0(hub, "/get_zr")
+  if (is.null(zrid) || is.na(zrid)) stop("Error: zrid NULL or NA")
+  if (is.null(hub) || is.na(hub)) stop("Error: hub NULL or NA")
+  if (begin == "" || end == "") stop("begin und end müssen gesetzt sein!")
 
-zr_list_url<- paste0(hub,"/get_zr")
+  all_data <- list()
+  begin_dt <- as.POSIXct(begin)
+  end_dt <- as.POSIXct(end)
+  max_days <- 365 * max_years
+  total_requests <- 0
+  fail_count <- 0
+  max_fails <- 10
 
-  if (is.null(zrid) || is.na(zrid)) {
-    stop("Error: zrid NULL or NA")
-  }
-
-  if (is.null(hub) || is.na(hub)) {
-    stop("Error: hub NULL or NA")
-  }
-
-    all_data <- list()
-    last_date_prev <- NA
-
-repeat{
-
-  if(is.POSIXct(begin))  begin<-format(begin,"%Y%m%d%H%M%S")
-  if(is.POSIXct(end))  end<-format(end,"%Y%m%d%H%M%S")
-  
-
-  parameter = list(zrid = as.character(zrid),
-                    von = begin,
-                    bis = end,
-                    zpform = "#Y#m#d#H#M#S",
-                    yform = "7.3f",
-                    compact = "true")
-
-  
-
-  ts_data<-create_aquazis_query(zr_list_url,parameter)
-  all_data[[length(all_data) + 1]] <- ts_data$data$Daten
-
-  last_date <- as.numeric(max(ts_data$data$Daten[,1], na.rm = TRUE))
-
-  message(paste0("Retrieved data up to: ", as.character(last_date)))
-
-    # Abbruch, wenn last_date zweimal hintereinander gleich ist
-    if (!is.na(last_date_prev) && last_date == last_date_prev) {
-      message("Abbruch: last_date ist final date of period.")
-      break
+  while (begin_dt < end_dt) {
+    next_end <- min(begin_dt + max_days * 24 * 3600 - 1, end_dt)
+    begin_str <- format(begin_dt, "%Y%m%d%H%M%S")
+    next_end_str <- format(next_end, "%Y%m%d%H%M%S")
+    parameter = list(zrid = as.character(zrid),
+                     von = begin_str,
+                     bis = next_end_str,
+                     zpform = "#Y#m#d#H#M#S",
+                     yform = "7.3f",
+                     compact = "true")
+    # Robust: Retry up to 3x with exponential backoff
+    tries <- 0
+    repeat {
+      tries <- tries + 1
+      ts_data <- tryCatch(create_aquazis_query(zr_list_url, parameter), error = function(e) NULL)
+      if (!is.null(ts_data) && !is.null(ts_data$data$Daten)) {
+        all_data[[length(all_data) + 1]] <- ts_data$data$Daten
+        if (verbose) message(sprintf("[OK] %s - %s (%d rows)", begin_str, next_end_str, nrow(ts_data$data$Daten)))
+        fail_count <- 0
+        break
+      } else {
+        if (verbose) message(sprintf("[FAIL] %s - %s (Try %d)", begin_str, next_end_str, tries))
+        Sys.sleep(pause_sec * tries)
+        if (tries >= 3) {
+          fail_count <- fail_count + 1
+          break
+        }
+      }
     }
-    last_date_prev <- last_date
-
-  if(last_date >= as.numeric(end) || (is.na(last_date) )){ 
-    break
+    if (fail_count >= max_fails) stop("Zu viele Fehler bei der Abfrage, Abbruch.")
+    begin_dt <- next_end + 1
+    total_requests <- total_requests + 1
   }
-  
-  begin <- as.POSIXct(as.character(last_date), format="%Y%m%d%H%M%S")+1
-  end <- as.POSIXct(end, format="%Y%m%d%H%M%S")
-
-  }
-
+  # Zusammenfügen
   if (length(all_data) > 0) {
     ts_data$data$Daten <- do.call(rbind, all_data)
   }
-
+  if (verbose) message(sprintf("Fertig: %d Requests, %d Zeitscheiben.", total_requests, length(all_data)))
   return(ts_data)
 }
 
@@ -350,18 +345,12 @@ create_aquazis_query<-function(hub,parameter){
     # HTTP-Anfrage
     resp <- curl::curl_fetch_memory(full_url)
     
-    if(resp$status_code == 500){
-      message("create_aquazis_query: Server error 500: data could not be loaded.")
-      return(resp)
-    }
-
     # Statuscode prüfen
     if (resp$status_code != 200) {
       message("create_aquazis_query: HTTP error ", resp$status_code, ": data could not be loaded.")
       return(resp)
     }
-    
-        
+
     # Antwortinhalt in String umwandeln
     json_text <- rawToChar(resp$content)
    #write(message(nchar(json_text, type = "bytes")),file="log.tmp",append=TRUE)
