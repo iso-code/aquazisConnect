@@ -268,8 +268,8 @@ get_aquazis_zr <- function(hub = NULL, zrid = NULL, begin = "", end = "", max_ye
   if (begin == "" || end == "") stop("begin und end müssen gesetzt sein!")
 
   all_data <- list()
-  begin_dt <- as.POSIXct(begin)
-  end_dt <- as.POSIXct(end)
+  begin_dt <- as.POSIXct(begin,tz="UTC")
+  end_dt <- as.POSIXct(end,tz="UTC")
   max_days <- 365 * max_years
   total_requests <- 0
   fail_count <- 0
@@ -491,7 +491,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     
     # Sonst Zeitfenster erweitern
     message("get_az_valid_to: No Data found. Increasing time range...")
-    begin <- begin - (60 * 60 * 24) + (13 + i)
+    begin <- as.POSIXct(begin) - (60 * 60 * 24) + (13 + i)
     i <- i + stepsize
     retry_count <- retry_count + 1
     if (retry_count > max_retries) {
@@ -530,9 +530,6 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
     ycoord = ycoord
   )
 }
-
-
-
 
 #' Retrieve verified periods for multiple AQUAZIS time series
 #'
@@ -962,6 +959,166 @@ gap_plot <- function(station_no = "no_number", station_name = "no_name", time_ve
   return(p)
 }
 
+#' Check the integrity of time series data for a station
+#'
+#' Reads and checks time series data files for a given station, detects gaps, and summarizes gap days per year.
+#' Optionally, plots can be created and saved for each station.
+#'
+#' @param files Character vector. List of file names containing the time series data.
+#' @param station_no Character or numeric. Station number to process.
+#' @param outpath Character. Output directory for saving plots (if enabled).
+#' @param exp_intv Character or numeric. Expected interval between measurements (e.g., "day" or numeric value).
+#' @param create_plots Logical. If TRUE, plots for each station will be created and saved (default: FALSE).
+#'
+#' @return A data frame (one row) summarizing the gap days per year for the station, including the station name.
+#' Returns NULL if the data is invalid or required columns are missing.
+#'
+#' @details
+#' The function reads all files matching the station number, combines them, and checks for required columns.
+#' It detects gaps in the time series using the \code{detect_gaps} function and summarizes the number of gap days per year
+#' using \code{add_gap_days_per_year}. Optionally, it creates and saves a plot visualizing the gaps.
+#'
+#' @examples
+#' \dontrun{
+#' check_integrity(files = list.files(), station_no = "1234567890", outpath = "output/", exp_intv = "day", create_plots = TRUE)
+#' }
+check_integrity <- function(files, station_no, outpath, exp_intv, create_plots = FALSE) {
+  #result_row <- NULL
+  time_vec<-NULL
+  #val<-NULL
+
+  tryCatch({
+    file <- files[grep(station_no, files)]
+    all_data <- file %>%
+      purrr::map(~ read.table(.x, sep = ";", header = TRUE)) %>%
+      dplyr::bind_rows() %>%
+      tibble::as_tibble() %>%
+      tidyr::drop_na()
+
+# Error Handling für fehlende Spalten
+    if (!("value.cm." %in% colnames(all_data) || "value.m..s." %in% colnames(all_data)))  {
+      message(sprintf("Spalte 'value.cm.' oder 'value.m..s.' fehlt in %s, Station: %s \n", paste(file, collapse = ","), station_no))
+      return(NULL)
+    }
+
+      if (!"dateTime" %in% colnames(all_data)) {
+      message(sprintf("Spalte 'dateTime' fehlt in %s, Station: %s", paste(file, collapse = ","), station_no))
+      return(NULL)
+    }
+    if (all(is.na(all_data$dateTime))) {
+      message(sprintf("Alle Werte in 'dateTime' sind NA in %s, Station: %s", paste(file, collapse = ","), station_no))
+      return(NULL)
+    }
+    all_data$dateTime <- as.POSIXct(all_data$dateTime, tz = "UTC")
+    all_data <- arrange(all_data, dateTime)
+
+  if (nrow(all_data) == 0) {
+  message(sprintf("Keine gültigen Daten für Station %s", station_no))
+  return(NULL)
+  }
+#######################
+
+    time_vec <-all_data$dateTime
+    val<-all_data[,4]
+
+    station_name <- sub("^[^_]+_([^_]+)_.*$", "\\1", file[1])
+ 
+    gap_info <- detect_gaps(time_vec, val, exp_intv)
+    gap_info <- gap_info %>%
+      mutate(
+        start = as.POSIXct(start, tz = "UTC"),
+        end   = as.POSIXct(end, tz = "UTC")
+      )
+                  
+    result_row <- add_gap_days_per_year(gap_info, result_tbl = NULL, station_no = station_no, year_start = 1991, year_end = 2021)
+    result_row$station_name <- station_name
+    
+    val <- if("value.cm." %in% colnames(all_data)) all_data$value.cm. else all_data$value.m..s.
+
+    if(create_plots) {
+      pp <- gap_plot(station_no, station_name, time_vec, val, gap_info, exp_intv)
+      ggsave(
+        filename = file.path(outpath, paste0(station_no,"_",station_name,"_" ,args,"_NRW.pdf")),
+        plot = pp,
+        width = 28,
+        height = 21,
+        units = "cm"
+      )
+    }
+    return(result_row)
+
+  }, error = function(e) {
+    message(sprintf("Fehler bei Station %s: %s", station_no, e$message))
+    print(e)
+    return(NULL)
+  })
+}
+
+#' Create and save a heatmap overview of gap days per year and station
+#'
+#' Generates a heatmap plot showing the number of gap days per year for a list of stations.
+#' The plot is saved as a PDF file in the specified output directory.
+#'
+#' @param station_list Vector of station numbers to include in the plot.
+#' @param result_tbl Data frame containing gap day counts per year and station. Must include columns \code{station_no}, \code{station_name}, and one column per year.
+#' @param outpath Character. Directory where the PDF file will be saved.
+#' @param args Character. Optional string to include in the output filename (default: "no_name").
+#' @param standort Character. Optional location name to include in the output filename (default: "Overview").
+#'
+#' @return No return value. The function saves the plot as a PDF file.
+#'
+#' @details
+#' The function filters the result table for the selected stations, reshapes the data to long format,
+#' and creates a heatmap using ggplot2. The x-axis shows the years (with ticks every two years),
+#' the y-axis shows the station number and name, and the fill color represents the number of gap days.
+#' The resulting plot is saved as a PDF file in the specified directory.
+#'
+#' @examples
+#' \dontrun{
+#' gap_overview(
+#'   station_list = c(1234567890, 9876543210),
+#'   result_tbl = my_result_tbl,
+#'   outpath = "output/plots",
+#'   args = "run1",
+#'   standort = "RegionA"
+#' )
+#' }
+gap_overview<-function(station_list, result_tbl,outpath,args="no_name",standort="Overview"){
+
+result_long <- result_tbl %>% filter(station_no %in% station_list) %>%
+  mutate(station_label = paste0(station_no, " (", station_name, ")")) %>%
+  pivot_longer(
+    cols = -c(station_no, station_name, station_label),
+    names_to = "year",
+    values_to = "gap_days"
+  ) %>%
+  mutate(year = as.integer(year))
+
+pp <- ggplot(result_long, aes(x = year, y = station_label, fill = gap_days)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "black", name = "Gap Days") +
+  scale_x_continuous(
+    breaks = seq(min(result_long$year), max(result_long$year), by = 2)
+  ) +
+  labs(
+    title = "Gap Days per Year and Station",
+    x = "Jahr",
+    y = "Station (Nummer und Name)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 7),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+  ggsave(
+        filename = file.path(outpath, paste0(standort,"_" ,args,"_","gaps.pdf")),
+        plot = pp,
+        width = 28,
+        height = 21,
+        units = "cm"
+      )
+}
 
 #Available Parameters
 #[1] ""                     "C * Wurzel(I)"        "Batteriespannung"     "Q=C*Wurzel(I)*P"      "Potenzfunktion_12"    "Q = vm * A"
