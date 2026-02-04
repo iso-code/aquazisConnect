@@ -438,7 +438,7 @@ empty_result <- data.frame(
 #' }
 #'
 #' @export
-get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5, max_years = NULL) {
+get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5, max_years = NULL) { 
   i <- 1
   retry_count <- 0
   wait_base <- 1
