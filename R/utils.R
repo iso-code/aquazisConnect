@@ -405,7 +405,7 @@ empty_result <- data.frame(
     }
   }
   zr$V2<-as.numeric(zr$V2)
-  zr$V1<-lubridate::as_datetime(zr$V1)
+  zr$V1<-lubridate::ymd_hms(zr$V1, tz = "UTC")
 }
   return(zr)
 }
@@ -438,7 +438,7 @@ empty_result <- data.frame(
 #' }
 #'
 #' @export
-get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5) {
+get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 30, max_retries = 5, max_years = NULL) {
   i <- 1
   retry_count <- 0
   wait_base <- 1
@@ -449,7 +449,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   repeat {
     Sys.sleep(wait_time)
   
-    resp <- safe_get_aquazis_zr(hub, zrid, begin, end)
+    resp <- safe_get_aquazis_zr(hub, zrid, begin, end, max_years = NULL)
    # print(resp)
     if (resp$status_code == 429) {
       message(sprintf("get_az_valid_to: HTTP 429: Rate Limit. Waiting %.1f s...", wait_time))
@@ -523,7 +523,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   tibble::tibble(
     zrid = zrid,
     start = ts_start,
-    valid = valid_to,
+    available = valid_to,
     ts_valid = ts_valid,
     end   = ts_end,
     xcoord = xcoord,
@@ -632,10 +632,10 @@ get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsi
 #' }
 #'
 #' @export
-safe_get_aquazis_zr <- function(hub, zrid, begin, end) {
+safe_get_aquazis_zr <- function(hub, zrid, begin, end, max_years = NULL) {
   tryCatch({
     # get_aquazis_zr liefert entweder DataFrame oder Liste (API-Antwort)
-    zr_data <- get_aquazis_zr(hub, zrid, begin, end)
+    zr_data <- get_aquazis_zr(hub, zrid, begin, end, max_years = max_years)
     
     # kein Fehler → einfach zurückgeben
     list(status_code = 200, data = zr_data, error = NULL)
@@ -699,11 +699,12 @@ get_verified_periods_parallel <- function(hub, zrids, begin, end, intervall = "l
   
   # Helper function for processing a single ZRID
 process_zrid <- function(zrid) {
-  library(lubridate)
+  #library(lubridate)
   log_file <- file.path(tempdir(), paste0("log_zrid_", zrid, ".txt"))
   tryCatch({
     sink(log_file)  # Nachrichten in die Datei umleiten
     message(paste0("Processing ZRID: ", zrid))
+
     result <- get_az_valid_to(
       hub = hub,
       zrid = zrid,
