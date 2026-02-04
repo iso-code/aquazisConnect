@@ -824,7 +824,7 @@ detect_gaps <- function(datetime, value, expected_interval = "hour") {
  #as.POSIXct(time, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
 
   # Berechne Differenzen in Minuten
-  timeframe<-data.frame(time1=time_vec, lag=lag(time_vec), diff=as.numeric(difftime(time_vec, lag(time_vec),units="mins")))
+  timeframe<-data.frame(time1=datetime, lag=lag(datetime), diff=as.numeric(difftime(datetime, lag(datetime),units="mins")))
   
   # Bestimme erwartetes Intervall in Minuten
   interval_min <- switch(expected_interval,
