@@ -270,7 +270,7 @@ get_aquazis_zr <- function(hub = NULL, zrid = NULL, begin = "", end = "", max_ye
   all_data <- list()
   begin_dt <- as.POSIXct(begin,tz="UTC")
   end_dt <- as.POSIXct(end,tz="UTC")
-  max_days <- 365 * max_years
+  max_days <- 365 * max_years  # länge der Zeitscheiben in Tagen
   total_requests <- 0
   fail_count <- 0
   max_fails <- 10
@@ -449,7 +449,7 @@ get_az_valid_to <- function(hub, zrid, begin, end, intervall = "l", stepsize = 3
   repeat {
     Sys.sleep(wait_time)
   
-    resp <- safe_get_aquazis_zr(hub, zrid, begin, end, max_years = NULL)
+    resp <- safe_get_aquazis_zr(hub, zrid, begin, end)
    # print(resp)
     if (resp$status_code == 429) {
       message(sprintf("get_az_valid_to: HTTP 429: Rate Limit. Waiting %.1f s...", wait_time))
@@ -632,7 +632,7 @@ get_verified_periods <- function(hub, zrids, begin, end, intervall = "l", stepsi
 #' }
 #'
 #' @export
-safe_get_aquazis_zr <- function(hub, zrid, begin, end, max_years = NULL) {
+safe_get_aquazis_zr <- function(hub, zrid, begin, end, max_years = 1) {
   tryCatch({
     # get_aquazis_zr liefert entweder DataFrame oder Liste (API-Antwort)
     zr_data <- get_aquazis_zr(hub, zrid, begin, end, max_years = max_years)
